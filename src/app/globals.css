@@ -148,6 +148,14 @@ input[type="range"] {
   color: var(--muted) !important;
 }
 
+/*
+ * Each map pane's SVG spans the whole map. Only its interactive shapes should
+ * catch the pointer, so clicks reach the panes beneath (see StormMap's PANES).
+ */
+.leaflet-pane > svg {
+  pointer-events: none;
+}
+
 /* The user's location: a pulsing dot. */
 .you-are-here {
   width: 16px;

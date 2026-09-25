@@ -14,6 +14,11 @@ import { usePathname } from "next/navigation";
  * tiles survive a trip to the Reports list and back.
  *
  * Leaflet touches `window` on import, so it is loaded client-side only.
+ *
+ * `z-[1]` rather than `z-0`: the layout's `<main>` comes later in the tree and
+ * fills the same space, so at z-index 0 it would sit on top of the map — empty
+ * on this route, but still catching every click, drag and scroll. While the map
+ * is hidden it is also `pointer-events-none`, so being on top costs nothing.
  */
 const StormMap = dynamic(() => import("./StormMap"), {
   ssr: false,
@@ -27,7 +32,7 @@ export function MapHost() {
   return (
     <div
       aria-hidden={!active}
-      className={`fixed inset-x-0 z-0 ${active ? "" : "invisible pointer-events-none"}`}
+      className={`fixed inset-x-0 z-[1] ${active ? "" : "invisible pointer-events-none"}`}
       style={{ top: "var(--header-h)", bottom: "var(--tabbar-h)" }}
     >
       <StormMap active={active} />

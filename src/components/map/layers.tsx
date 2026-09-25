@@ -1,7 +1,7 @@
 "use client";
 
 import { divIcon } from "leaflet";
-import { memo } from "react";
+import { memo, type ReactNode } from "react";
 import { CircleMarker, Marker, Polygon, Polyline, Popup } from "react-leaflet";
 import { categoryColor, categoryGlyph } from "@/lib/categories";
 import { formatDateTime } from "@/lib/format";
@@ -11,6 +11,15 @@ import type { DamageArea, LatLng, OutlookData, StormAlert, StormReport } from "@
  * The map's vector layers. Each is memoized on its data so the radar
  * animation (which re-renders the map twice a second) never redraws them.
  */
+
+/**
+ * Popups belong in Leaflet's popup pane, above every layer. react-leaflet
+ * otherwise puts a popup in the pane of the `<Pane>` it's rendered inside —
+ * alongside that pane's vector layer, which covers it and takes its clicks.
+ */
+function MapPopup({ children }: { children: ReactNode }) {
+  return <Popup pane="popupPane">{children}</Popup>;
+}
 
 function PopupButton({ onClick }: { onClick: () => void }) {
   return (
@@ -48,7 +57,7 @@ export const OutlookLayer = memo(function OutlookLayer({ data }: { data: Outlook
             }}
           >
             {interactive && (
-              <Popup>
+              <MapPopup>
                 <strong className="block">{f.detail || f.label}</strong>
                 <span className="block text-muted">{data.product.title}</span>
                 <a
@@ -59,7 +68,7 @@ export const OutlookLayer = memo(function OutlookLayer({ data }: { data: Outlook
                 >
                   SPC discussion ↗
                 </a>
-              </Popup>
+              </MapPopup>
             )}
           </Polygon>
         ));
@@ -105,12 +114,12 @@ export const DamageLayer = memo(function DamageLayer({ areas }: { areas: DamageA
 
 function AlertPopup({ alert, onSelect }: { alert: StormAlert; onSelect: (a: StormAlert) => void }) {
   return (
-    <Popup>
+    <MapPopup>
       <strong className="block">{alert.event}</strong>
       {alert.areaDesc && <span className="block clamp-2 text-muted">{alert.areaDesc}</span>}
       {alert.expires && <span className="block text-muted-dim">Until {formatDateTime(alert.expires)}</span>}
       <PopupButton onClick={() => onSelect(alert)} />
-    </Popup>
+    </MapPopup>
   );
 }
 
@@ -181,13 +190,13 @@ export const ReportLayer = memo(function ReportLayer({
           radius={4.5}
           pathOptions={{ color: "#000", weight: 1, fillColor: categoryColor(r.category), fillOpacity: 1 }}
         >
-          <Popup>
+          <MapPopup>
             <strong className="block">
               {categoryGlyph(r.category)} {r.title}
             </strong>
             <span className="block text-muted">{r.subtitle}</span>
             <PopupButton onClick={() => onSelect(r)} />
-          </Popup>
+          </MapPopup>
         </CircleMarker>
       ))}
     </>

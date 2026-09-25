@@ -19,6 +19,11 @@ import { RadarLayer, RadarTimeline, useRadarPlayback } from "./radar";
  * Layer order, bottom to top. Each group gets its own pane so a feed that
  * reloads can't jump above one that didn't — with one shared canvas, Leaflet
  * would redraw whatever was added last on top.
+ *
+ * Vectors are drawn as SVG, not canvas. A canvas renderer puts one full-map
+ * canvas in each pane, and the topmost one takes every click — nothing in a
+ * lower pane (warnings, outlooks) could be clicked. SVG is hit-tested per
+ * shape, so each pane passes clicks through wherever it has nothing drawn.
  */
 const PANES = {
   outlook: 405,
@@ -66,7 +71,6 @@ export default function StormMap({ active }: { active: boolean }) {
     <div className="relative h-full w-full">
       <MapContainer
         bounds={US_BOUNDS}
-        preferCanvas
         zoomControl={false}
         worldCopyJump
         minZoom={3}
