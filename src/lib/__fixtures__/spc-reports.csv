@@ -1,0 +1,19 @@
+Time,F_Scale,Location,County,State,Lat,Lon,Comments
+1949,UNK,Vashti,Clay,TX,33.55,-98.04,(OUN)
+1956,UNK,7 WSW Bowie,Montague,TX,33.51,-97.95,There was video evidence of a tornado that developed near TX-59 near the Montague/Clay county line the afternoon of Tuesday... April 28th. Tree damage can be seen in th (FWD)
+2037,UNK,2 S White Church,Howell,MO,36.82,-91.78,A combination of ground surveys... radar data... and Sentinel-2 satellite data concluded an EF0 tornado briefly occurred approximately 2 miles south of White Church. A (SGF)
+2200,UNK,1 SSE Apple,Choctaw,OK,34.12,-95.41,A tornado uprooted numerous trees... snapped numerous large tree limbs... and damaged a home. (TSA)
+2310,EF2,3 N Tuttle,Grady,OK,35.33,-97.81,Damage to barns, outbuildings, and trees. (OUN)
+Time,Speed,Location,County,State,Lat,Lon,Comments
+1415,UNK,2 N Saint Jo,Montague,TX,33.72,-97.52,Multiple trees and power lines down just north of Saint Jo... and roadways had to be cleared. (FWD)
+1453,UNK,Davis,Murray,OK,34.5,-97.12,Limbs down and fence damage. (OUN)
+1501,UNK,9 NNE Callisburg,Cooke,TX,33.82,-96.96,Delayed report. Tree damage was reported at a home near Dexter. Many tree limbs were down or snapped and a large limb fell on top of the house. Time estimated by radar. (FWD)
+1624,UNK,1 WSW Aurora,Lawrence,MO,36.97,-93.73,Powerline down. (SGF)
+1700,65,Norman,Cleveland,OK,35.22,-97.44,Measured gust. (OUN)
+1710,70,Nowhere,Nope,OK,,-97.4,Missing latitude (OUN)
+Time,Size,Location,County,State,Lat,Lon,Comments
+1429,100,Leon,Love,OK,33.88,-97.43,(OUN)
+1443,175,1 N Kansas,Delaware,OK,36.21,-94.8,Photo of mostly subsevere hail with one larger hailstone reportedly around a golf ball. (TSA)
+1500,100,3 WNW Pink,Cleveland,OK,35.28,-97.18,(OUN)
+1507,100,Siloam Springs,Benton,AR,36.19,-94.54,Report from mPING: Quarter (1.00 in.) Time estimated from radar. (TSA)
+1429,100,Leon,Love,OK,33.88,-97.43,(OUN)

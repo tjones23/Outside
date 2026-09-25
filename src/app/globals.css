@@ -1,0 +1,175 @@
+@import "tailwindcss";
+
+/**
+ * Outside shares WhatsGood's palette: a near-black ground, low-chroma
+ * surfaces, and gold used sparingly. Here the dark ground does a second job —
+ * warnings, radar and outlook colors are the brightest things on the page,
+ * which is exactly where attention should go.
+ */
+:root {
+  color-scheme: dark;
+
+  --ink: #08080b;
+  --surface: #121218;
+  --surface-2: #1b1b23;
+  --line: #2a2a35;
+  --line-soft: #1f1f28;
+
+  --text: #f3f3f6;
+  --muted: #9a9aa8;
+  --muted-dim: #6e6e7c;
+
+  --accent: #ffc247;
+  --accent-ink: #1a1200;
+
+  /* Storm categories — the same hues as the mobile app's markers. */
+  --tornado: #ff3b30;
+  --wind: #4f7cff;
+  --hail: #34c77b;
+
+  /* Alert kinds. */
+  --warning: #ef4444;
+  --watch: #f5b400;
+  --danger: #ef4444;
+
+  --header-h: 3.5rem;
+  --tabbar-h: calc(3.75rem + env(safe-area-inset-bottom));
+}
+
+@media (min-width: 640px) {
+  :root {
+    --tabbar-h: 0px;
+  }
+}
+
+@theme inline {
+  --color-ink: var(--ink);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-line: var(--line);
+  --color-line-soft: var(--line-soft);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-muted-dim: var(--muted-dim);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-tornado: var(--tornado);
+  --color-wind: var(--wind);
+  --color-hail: var(--hail);
+  --color-warning: var(--warning);
+  --color-watch: var(--watch);
+  --color-danger: var(--danger);
+
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+}
+
+body {
+  background: var(--ink);
+  color: var(--text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Content pages clear the fixed mobile tab bar. */
+.pb-tabbar {
+  padding-bottom: calc(var(--tabbar-h) + 1.5rem);
+}
+
+.clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Range inputs in the accent color. */
+input[type="range"] {
+  accent-color: var(--accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* --- Leaflet, dressed for the dark theme ---------------------------------- */
+
+.leaflet-container {
+  background: #0b0b10;
+  font-family: var(--font-sans);
+}
+
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--line);
+  box-shadow: 0 10px 30px rgb(0 0 0 / 0.5);
+}
+
+.leaflet-popup-content-wrapper {
+  border-radius: 0.75rem;
+}
+
+.leaflet-popup-content {
+  margin: 0.75rem 0.9rem;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+}
+
+.leaflet-container a.leaflet-popup-close-button {
+  color: var(--muted);
+}
+
+.leaflet-bar a,
+.leaflet-bar a:hover {
+  background: var(--surface-2);
+  color: var(--text);
+  border-bottom-color: var(--line);
+}
+
+.leaflet-bar {
+  border: 1px solid var(--line) !important;
+  box-shadow: none !important;
+}
+
+.leaflet-control-attribution {
+  background: rgb(8 8 11 / 0.7) !important;
+  color: var(--muted-dim) !important;
+  font-size: 10px;
+}
+
+.leaflet-control-attribution a {
+  color: var(--muted) !important;
+}
+
+/* The user's location: a pulsing dot. */
+.you-are-here {
+  width: 16px;
+  height: 16px;
+  border-radius: 9999px;
+  background: #3b82f6;
+  border: 2px solid white;
+  box-shadow: 0 0 0 0 rgb(59 130 246 / 0.6);
+  animation: you-pulse 2s ease-out infinite;
+}
+
+@keyframes you-pulse {
+  to {
+    box-shadow: 0 0 0 14px rgb(59 130 246 / 0);
+  }
+}
+
+@keyframes loading {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(300%);
+  }
+}
