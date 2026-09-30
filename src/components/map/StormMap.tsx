@@ -32,6 +32,7 @@ const PANES = {
   labels: 420,
   alertMarkers: 425,
   reports: 430,
+  you: 435,
 } as const;
 
 /**
@@ -108,7 +109,9 @@ export default function StormMap({ active }: { active: boolean }) {
           <ReportLayer reports={reports} onSelect={setSelectedReport} />
         </Pane>
 
-        {location.coord && <UserLocationMarker at={location.coord} />}
+        <Pane name="you" style={{ zIndex: PANES.you }}>
+          {location.coord && <UserLocationMarker at={location.coord} accuracy={location.accuracy} />}
+        </Pane>
         <ZoomControl position="bottomright" />
         <FitOnShow active={active} />
         {recenter && <Recenter key={recenter.n} to={recenter.to} />}

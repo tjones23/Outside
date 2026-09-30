@@ -2,7 +2,7 @@
 
 import { divIcon } from "leaflet";
 import { memo, type ReactNode } from "react";
-import { CircleMarker, Marker, Polygon, Polyline, Popup } from "react-leaflet";
+import { Circle, CircleMarker, Marker, Polygon, Polyline, Popup } from "react-leaflet";
 import { categoryColor, categoryGlyph } from "@/lib/categories";
 import { formatDateTime } from "@/lib/format";
 import type { DamageArea, LatLng, OutlookData, StormAlert, StormReport } from "@/lib/types";
@@ -205,6 +205,25 @@ export const ReportLayer = memo(function ReportLayer({
 
 const youAreHere = divIcon({ className: "", html: '<div class="you-are-here"></div>', iconSize: [16, 16] });
 
-export function UserLocationMarker({ at }: { at: LatLng }) {
-  return <Marker position={at} icon={youAreHere} interactive={false} keyboard={false} zIndexOffset={1000} />;
+/** Past this, the halo would wash over a whole region and hide the storms under it. */
+const MAX_ACCURACY_HALO_M = 25_000;
+
+/**
+ * The viewer's position: a pulsing dot, with a faint halo showing how far off
+ * the fix might be. Neither takes clicks, so whatever is underneath still can.
+ */
+export function UserLocationMarker({ at, accuracy }: { at: LatLng; accuracy: number | null }) {
+  return (
+    <>
+      {accuracy !== null && accuracy > 0 && accuracy <= MAX_ACCURACY_HALO_M && (
+        <Circle
+          center={at}
+          radius={accuracy}
+          interactive={false}
+          pathOptions={{ color: "#3b82f6", weight: 1, opacity: 0.5, fillColor: "#3b82f6", fillOpacity: 0.12 }}
+        />
+      )}
+      <Marker position={at} icon={youAreHere} interactive={false} keyboard={false} zIndexOffset={1000} />
+    </>
+  );
 }
