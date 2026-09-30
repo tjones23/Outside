@@ -5,6 +5,8 @@ import { memo, type ReactNode } from "react";
 import { CircleMarker, Marker, Polygon, Polyline, Popup } from "react-leaflet";
 import { categoryColor, categoryGlyph } from "@/lib/categories";
 import { formatDateTime } from "@/lib/format";
+import { featureColors } from "@/lib/outlook";
+import type { Theme } from "@/lib/theme";
 import type { DamageArea, LatLng, OutlookData, StormAlert, StormReport } from "@/lib/types";
 
 /**
@@ -33,10 +35,11 @@ function PopupButton({ onClick }: { onClick: () => void }) {
   );
 }
 
-export const OutlookLayer = memo(function OutlookLayer({ data }: { data: OutlookData }) {
+export const OutlookLayer = memo(function OutlookLayer({ data, theme }: { data: OutlookData; theme: Theme }) {
   return (
     <>
       {data.features.map((f, i) => {
+        const { fill, stroke } = featureColors(f, theme);
         const weight = f.isHatched ? ((f.cigLevel ?? 1) >= 2 ? 3 : 2) : 1.5;
         // General thunder covers half the country; clicking it would just
         // get in the way of clicking the map.
@@ -47,10 +50,10 @@ export const OutlookLayer = memo(function OutlookLayer({ data }: { data: Outlook
             positions={ring}
             interactive={interactive}
             pathOptions={{
-              color: f.strokeColor,
+              color: stroke,
               weight,
               opacity: 0.9,
-              fillColor: f.isHatched ? f.strokeColor : f.fillColor,
+              fillColor: f.isHatched ? stroke : fill,
               // General thunder is a wash across half the country; keep it faint.
               fillOpacity: f.isHatched ? 0.06 : f.isGeneralThunderstorm ? 0.1 : 0.3,
               dashArray: f.isHatched ? "6 4" : undefined,
@@ -80,7 +83,7 @@ export const OutlookLayer = memo(function OutlookLayer({ data }: { data: Outlook
             key={`h-${i}`}
             positions={f.hatch}
             interactive={false}
-            pathOptions={{ color: f.strokeColor, weight: 1, opacity: 0.75 }}
+            pathOptions={{ color: featureColors(f, theme).stroke, weight: 1, opacity: 0.75 }}
           />
         ))}
     </>

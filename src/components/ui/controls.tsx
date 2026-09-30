@@ -41,6 +41,41 @@ export function Switch({
   );
 }
 
+/** One choice from a few, as a row of pills. */
+export function Segmented<T extends string>({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: T;
+  options: { value: T; label: ReactNode }[];
+  onChange: (next: T) => void;
+}) {
+  return (
+    <div role="radiogroup" aria-label={label} className="flex rounded-full border border-line bg-surface-2 p-1">
+      {options.map((o) => {
+        const on = o.value === value;
+        return (
+          <button
+            key={o.value}
+            type="button"
+            role="radio"
+            aria-checked={on}
+            onClick={() => onChange(o.value)}
+            className={`flex-1 rounded-full px-3 py-1.5 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${
+              on ? "bg-accent font-medium text-accent-ink" : "text-muted hover:text-text"
+            }`}
+          >
+            {o.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 /** A toggle pill. `color` tints it when on. */
 export function Chip({
   on,
@@ -93,7 +128,7 @@ export function Button({
   className?: string;
 }) {
   const styles = {
-    primary: "bg-text text-ink hover:bg-white",
+    primary: "bg-text text-ink hover:opacity-90",
     secondary: "border border-line bg-surface text-text hover:border-muted-dim",
     ghost: "text-muted hover:bg-surface hover:text-text",
     danger: "border border-danger/40 text-danger hover:bg-danger/10",

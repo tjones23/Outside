@@ -1,6 +1,7 @@
-import { outlookColor, outlookFillDark, outlookStrokeDark, toHex } from "./color";
+import { outlookColor, outlookFillDark, outlookFillLight, outlookStrokeDark, outlookStrokeLight, toHex } from "./color";
 import { polygons as geoPolygons } from "./geojson";
 import { hatchSegments } from "./hatch";
+import type { Theme } from "./theme";
 import type { OutlookData, OutlookFeature, OutlookKind, OutlookProduct, Ring } from "./types";
 
 /**
@@ -66,8 +67,20 @@ export function isGeneralThunderstorm(label: string, detail: string): boolean {
   return label.toUpperCase() === "TSTM" || /general thunderstorm/i.test(detail);
 }
 
-/** Outline and slashes for hatched areas. */
+/**
+ * Outline and slashes for hatched areas. SPC draws them black, which vanishes
+ * on the dark basemap; a pale line reads as "pattern" there the way black
+ * does on the light one.
+ */
 export const HATCH_COLOR = "#E4E4EC";
+export const HATCH_COLOR_LIGHT = "#1B1B23";
+
+/** A feature's map colors for the basemap on screen. */
+export function featureColors(f: OutlookFeature, theme: Theme): { fill: string; stroke: string } {
+  return theme === "light"
+    ? { fill: f.fillColorLight, stroke: f.strokeColorLight }
+    : { fill: f.fillColor, stroke: f.strokeColor };
+}
 
 /** Hatching falls back to this latitude when no area is hatched. */
 const DEFAULT_REF_LAT = 39.5;
@@ -131,9 +144,9 @@ export function buildOutlook(product: OutlookProduct, json: unknown): OutlookDat
         label: r.label,
         detail: r.detail,
         fillColor: toHex(outlookFillDark(fill)),
-        // SPC draws hatched areas with a black outline, which disappears on a
-        // dark basemap; a pale one reads as "pattern" the way black does on white.
         strokeColor: r.hatched ? HATCH_COLOR : toHex(outlookStrokeDark(stroke)),
+        fillColorLight: toHex(outlookFillLight(fill)),
+        strokeColorLight: r.hatched ? HATCH_COLOR_LIGHT : toHex(outlookStrokeLight(stroke)),
         swatchColor: toHex(fill),
         isHatched: r.hatched,
         cigLevel: r.hatched && digits ? parseInt(digits, 10) : null,

@@ -3,16 +3,17 @@
 import { useCallback, useSyncExternalStore } from "react";
 import { DEFAULT_FILTERS, normalizeFilters, CATEGORY_KEY } from "./filters";
 import { newId } from "./id";
+import { DEFAULT_THEME_PREFERENCE, parseThemePreference, THEME_STORAGE_KEY, type ThemePreference } from "./theme";
 import type { FilterSettings, NotificationSettings, SavedLocation, StormCategory } from "./types";
 
 /**
  * Everything personal lives here, in this browser — never on the server.
  *
- * Filters, saved places and notification settings are per-browser by design:
- * there are no accounts, and the server holds nothing but cached public
- * weather data. The pattern is WhatsGood's: `useSyncExternalStore` over
- * localStorage, which gives a correct server snapshot for free and keeps tabs
- * in sync through the `storage` event.
+ * Filters, saved places, notification settings and the theme are
+ * per-browser by design: there are no accounts, and the server holds nothing
+ * but cached public weather data. The pattern is WhatsGood's:
+ * `useSyncExternalStore` over localStorage, which gives a correct server
+ * snapshot for free and keeps tabs in sync through the `storage` event.
  *
  * Every access is wrapped: localStorage throws in private-browsing modes and
  * when site data is blocked, and a preference is never worth breaking a page.
@@ -208,6 +209,22 @@ export function useNotificationSettings() {
     });
   }, []);
   return { settings, update };
+}
+
+// --- Appearance ------------------------------------------------------------
+
+export function readThemePreference(): ThemePreference {
+  return readSnapshot(THEME_STORAGE_KEY, parseThemePreference, DEFAULT_THEME_PREFERENCE);
+}
+
+export function subscribeThemePreference(onChange: () => void): () => void {
+  return subscriberFor(THEME_STORAGE_KEY)(onChange);
+}
+
+export function useThemePreference() {
+  const preference = useStored(THEME_STORAGE_KEY, parseThemePreference, DEFAULT_THEME_PREFERENCE);
+  const setPreference = useCallback((next: ThemePreference) => persist(THEME_STORAGE_KEY, next), []);
+  return { preference, setPreference };
 }
 
 // --- Seen alerts (not reactive; only the notifier reads it) ------------------

@@ -88,6 +88,9 @@ export interface OutlookFeature {
   /** Map-ready colors, already tuned for the dark basemap. */
   fillColor: string;
   strokeColor: string;
+  /** The same, tuned for the light basemap. */
+  fillColorLight: string;
+  strokeColorLight: string;
   /** The SPC color itself, lightly toned — for the legend. */
   swatchColor: string;
   isHatched: boolean;

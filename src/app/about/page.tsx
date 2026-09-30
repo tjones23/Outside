@@ -25,9 +25,9 @@ const SOURCES = [
     what: "Composite radar for the last two hours, animated. The free tier is sharp to zoom 7 and stretched beyond it.",
   },
   {
-    name: "Esri Dark Gray Canvas",
+    name: "Esri Gray Canvas",
     href: "https://www.esri.com/",
-    what: "The dark map and its labels. Esri, HERE, Garmin, © OpenStreetMap contributors.",
+    what: "The map and its labels, in Dark Gray or Light Gray to match the theme. Esri, HERE, Garmin, © OpenStreetMap contributors.",
   },
   {
     name: "OpenStreetMap Nominatim",

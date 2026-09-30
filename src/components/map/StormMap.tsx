@@ -11,6 +11,7 @@ import { NearbyBanner } from "../NearbyBanner";
 import { useLocation } from "../providers/LocationProvider";
 import { useStormData } from "../providers/StormDataProvider";
 import { useFilteredData } from "../providers/useFilteredData";
+import { useTheme } from "../providers/useTheme";
 import { AlertLayer, DamageLayer, OutlookLayer, ReportLayer, UserLocationMarker } from "./layers";
 import { OutlookLegend } from "./OutlookLegend";
 import { RadarLayer, RadarTimeline, useRadarPlayback } from "./radar";
@@ -35,12 +36,13 @@ const PANES = {
 } as const;
 
 /**
- * Esri's Dark Gray Canvas: free and keyless with attribution. (CARTO's dark
- * tiles, the usual choice, now answer every request with an "API key
- * required" placeholder.) Base and labels are separate services, so the
- * labels can sit above radar and warning polygons.
+ * Esri's Dark Gray and Light Gray Canvas, one per theme: free and keyless
+ * with attribution. (CARTO's tiles, the usual choice, now answer every
+ * request with an "API key required" placeholder.) Base and labels are
+ * separate services, so the labels can sit above radar and warning polygons.
  */
 const ESRI = "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas";
+const ESRI_CANVAS = { dark: "World_Dark_Gray", light: "World_Light_Gray" } as const;
 const ESRI_ATTRIBUTION =
   'Tiles &copy; <a href="https://www.esri.com/">Esri</a> &mdash; Esri, HERE, Garmin, &copy; OpenStreetMap contributors';
 const ESRI_MAX_NATIVE_ZOOM = 16;
@@ -49,6 +51,8 @@ export default function StormMap({ active }: { active: boolean }) {
   const { alerts, reports, damageAreas, filters } = useFilteredData();
   const { outlook, radar, alerts: alertFeed, reports: reportFeed } = useStormData();
   const location = useLocation();
+  const theme = useTheme();
+  const canvas = ESRI_CANVAS[theme];
 
   const [showFilters, setShowFilters] = useState(false);
   const [selectedAlert, setSelectedAlert] = useState<StormAlert | null>(null);
@@ -77,7 +81,7 @@ export default function StormMap({ active }: { active: boolean }) {
         className="h-full w-full"
       >
         <TileLayer
-          url={`${ESRI}/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}`}
+          url={`${ESRI}/${canvas}_Base/MapServer/tile/{z}/{y}/{x}`}
           attribution={ESRI_ATTRIBUTION}
           maxNativeZoom={ESRI_MAX_NATIVE_ZOOM}
           maxZoom={19}
@@ -86,7 +90,7 @@ export default function StormMap({ active }: { active: boolean }) {
         <RadarLayer playback={playback} opacity={filters.radarOpacity} />
 
         <Pane name="outlook" style={{ zIndex: PANES.outlook }}>
-          {outlookData && <OutlookLayer data={outlookData} />}
+          {outlookData && <OutlookLayer data={outlookData} theme={theme} />}
         </Pane>
         <Pane name="damage" style={{ zIndex: PANES.damage }}>
           <DamageLayer areas={damageAreas} />
@@ -96,7 +100,7 @@ export default function StormMap({ active }: { active: boolean }) {
         </Pane>
         <Pane name="labels" style={{ zIndex: PANES.labels, pointerEvents: "none" }}>
           <TileLayer
-            url={`${ESRI}/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}`}
+            url={`${ESRI}/${canvas}_Reference/MapServer/tile/{z}/{y}/{x}`}
             maxNativeZoom={ESRI_MAX_NATIVE_ZOOM}
             maxZoom={19}
           />
@@ -154,7 +158,7 @@ export default function StormMap({ active }: { active: boolean }) {
       <div className="pointer-events-none absolute inset-x-3 bottom-3 z-[500] flex flex-col items-start gap-2 pr-12">
         {outlookData && outlookData.features.length > 0 && (
           <div className="pointer-events-auto">
-            <OutlookLegend data={outlookData} />
+            <OutlookLegend data={outlookData} theme={theme} />
           </div>
         )}
         {manifest && playback.frames.length > 0 && (

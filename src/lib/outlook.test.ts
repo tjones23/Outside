@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { jsonFixture } from "./__fixtures__/load";
 import {
   HATCH_COLOR,
+  HATCH_COLOR_LIGHT,
   availableDays,
   buildOutlook,
   clampDay,
@@ -58,6 +59,8 @@ describe("buildOutlook", () => {
       expect(f.isHatched).toBe(false);
       expect(f.hatch).toEqual([]);
       expect(f.fillColor).toMatch(/^#[0-9A-F]{6}$/);
+      expect(f.fillColorLight).toMatch(/^#[0-9A-F]{6}$/);
+      expect(f.strokeColorLight).toMatch(/^#[0-9A-F]{6}$/);
       expect(f.rings.length).toBeGreaterThan(0);
       // [lat, lon], not GeoJSON's [lon, lat].
       expect(f.rings[0][0][0]).toBeGreaterThan(20);
@@ -65,13 +68,14 @@ describe("buildOutlook", () => {
     }
   });
 
-  it("hatches the CIG area and gives it a pale outline", () => {
+  it("hatches the CIG area and outlines it pale on dark, dark on light", () => {
     const { features } = buildOutlook(outlookProduct(1, "tornado"), jsonFixture("outlook-torn.geojson"));
     const cig = features.find((f) => f.label === "CIG1")!;
     expect(cig.isHatched).toBe(true);
     expect(cig.cigLevel).toBe(1);
     expect(cig.hatch.length).toBeGreaterThan(10);
     expect(cig.strokeColor).toBe(HATCH_COLOR);
+    expect(cig.strokeColorLight).toBe(HATCH_COLOR_LIGHT);
     expect(features.filter((f) => f.isHatched)).toHaveLength(1);
   });
 
