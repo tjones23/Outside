@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { adjusted, outlookColor, outlookFillDark, rgbComponents, toHex } from "./color";
+import { adjusted, outlookColor, outlookFillDark, outlookStrokeLight, rgbComponents, toHex } from "./color";
 
 describe("rgbComponents", () => {
   it("parses hex with or without #", () => {
@@ -42,6 +42,13 @@ describe("adjusted", () => {
       expect(c).toBeGreaterThanOrEqual(0);
       expect(c).toBeLessThanOrEqual(1);
     }
+  });
+});
+
+describe("outlookStrokeLight", () => {
+  it("darkens the outline for the light basemap", () => {
+    const base: [number, number, number] = [0.9, 0.9, 0.5];
+    expect(Math.max(...outlookStrokeLight(base))).toBeLessThan(Math.max(...base));
   });
 });
 

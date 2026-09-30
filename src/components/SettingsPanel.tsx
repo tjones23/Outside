@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, useSyncExternalStore } from "react";
-import { useNotificationSettings } from "@/lib/client-store";
+import { useNotificationSettings, useThemePreference } from "@/lib/client-store";
+import type { ThemePreference } from "@/lib/theme";
 import type { NotificationSettings } from "@/lib/types";
 import { registerServiceWorker } from "./AlertNotifier";
 import { PageHeader } from "./PageHeader";
 import { SecureContextNote } from "./SecureContextNote";
 import { useSecureContext } from "./providers/useSecureContext";
-import { Button, SectionTitle, Switch } from "./ui/controls";
+import { Button, SectionTitle, Segmented, Switch } from "./ui/controls";
 
 type Permission = NotificationPermission | "unsupported";
 
@@ -45,7 +46,14 @@ function useNeedsHomeScreen(): boolean {
   );
 }
 
+const THEME_OPTIONS: { value: ThemePreference; label: string }[] = [
+  { value: "system", label: "System" },
+  { value: "light", label: "Light" },
+  { value: "dark", label: "Dark" },
+];
+
 export function SettingsPanel() {
+  const { preference, setPreference } = useThemePreference();
   const { settings, update } = useNotificationSettings();
   const secure = useSecureContext();
   const permission = usePermission();
@@ -75,6 +83,14 @@ export function SettingsPanel() {
   return (
     <>
       <PageHeader title="Settings" />
+
+      <SectionTitle>Appearance</SectionTitle>
+      <div className="rounded-2xl border border-line bg-surface px-4 py-3">
+        <Segmented label="Theme" value={preference} options={THEME_OPTIONS} onChange={setPreference} />
+        <p className="mt-2 text-xs text-muted-dim">
+          System matches your device, and switches along with it between light and dark.
+        </p>
+      </div>
 
       <SectionTitle>Notifications</SectionTitle>
       <div className="rounded-2xl border border-line bg-surface px-4 py-2">

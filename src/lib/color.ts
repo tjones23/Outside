@@ -5,6 +5,7 @@
  * SPC publishes a fill and stroke color per outlook area. Drawn as-is they
  * sit muddy on a dark basemap, so they are nudged toward blue (as every
  * DamageTracker client has done) and then saturated and brightened for dark.
+ * On the light basemap they are saturated a little and outlined darker.
  */
 
 export type Rgb = [r: number, g: number, b: number];
@@ -56,6 +57,16 @@ export function outlookFillDark(base: Rgb): Rgb {
 /** Outline for an outlook area on the dark basemap (MAUI `OutlookStroke`, dark). */
 export function outlookStrokeDark(base: Rgb): Rgb {
   return adjusted(base, 1.5, 1.45);
+}
+
+/** Fill for an outlook area on the light basemap. SPC's pastels, with a little more color. */
+export function outlookFillLight(base: Rgb): Rgb {
+  return adjusted(base, 1.35, 1);
+}
+
+/** Outline for an outlook area on the light basemap: darker, so it holds an edge on pale gray. */
+export function outlookStrokeLight(base: Rgb): Rgb {
+  return adjusted(base, 1.3, 0.75);
 }
 
 function clamp01(v: number): number {

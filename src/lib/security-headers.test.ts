@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { createHash } from "node:crypto";
 import { contentSecurityPolicy, staticSecurityHeaders } from "./security-headers";
+import { THEME_SCRIPT } from "./theme";
 
 const NONCE = "dGVzdC1ub25jZQ==";
 const policy = (isDev = false) => contentSecurityPolicy({ nonce: NONCE, isDev });
@@ -11,6 +13,11 @@ describe("contentSecurityPolicy", () => {
     expect(scriptSrc).toContain(`'nonce-${NONCE}'`);
     expect(scriptSrc).not.toContain("unsafe-inline");
     expect(scriptSrc).not.toContain("strict-dynamic");
+  });
+
+  it("allows the inline theme script by its hash", () => {
+    const hash = createHash("sha256").update(THEME_SCRIPT).digest("base64");
+    expect(directive(policy(), "script-src")).toContain(`'sha256-${hash}'`);
   });
 
   it("allows eval only in development", () => {

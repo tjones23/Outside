@@ -1,3 +1,6 @@
+import { createHash } from "node:crypto";
+import { THEME_SCRIPT } from "./theme";
+
 /**
  * Response security headers, adapted from WhatsGood.
  *
@@ -23,7 +26,7 @@ export interface HeaderOptions {
  * storm data, which the server fetches and caches — is same-origin.
  */
 export const TILE_HOSTS = [
-  // Dark basemap and its labels (Esri Dark Gray Canvas).
+  // Basemaps and their labels (Esri Dark Gray and Light Gray Canvas).
   "https://server.arcgisonline.com",
   // Radar frames.
   "https://tilecache.rainviewer.com",
@@ -38,6 +41,13 @@ export const TILE_HOSTS = [
  */
 const REACT_TIMING_HASH = "'sha256-7mu4H06fwDCjmnxxr/xNHyuQC6pLTHr4M2E4jXw5WZs='";
 
+/**
+ * The layout's inline theme script, which has to run before the first paint.
+ * The prerendered shell it lives in has no nonce, so it too is allowed by its
+ * hash — computed from the script itself, so the two can't drift apart.
+ */
+const THEME_SCRIPT_HASH = `'sha256-${createHash("sha256").update(THEME_SCRIPT).digest("base64")}'`;
+
 export function contentSecurityPolicy({ nonce, isDev }: HeaderOptions): string {
   return [
     "default-src 'self'",
@@ -47,7 +57,7 @@ export function contentSecurityPolicy({ nonce, isDev }: HeaderOptions): string {
      * route can't have, because its HTML is built before any nonce exists.
      * `'self'` plus a nonce still blocks injected inline script.
      */
-    `script-src 'self' 'nonce-${nonce}' ${REACT_TIMING_HASH}${isDev ? " 'unsafe-eval'" : ""}`,
+    `script-src 'self' 'nonce-${nonce}' ${REACT_TIMING_HASH} ${THEME_SCRIPT_HASH}${isDev ? " 'unsafe-eval'" : ""}`,
     `style-src 'self' 'nonce-${nonce}' 'unsafe-inline'`,
     /*
      * Style *attributes* — the category and alert colors on chips, banners

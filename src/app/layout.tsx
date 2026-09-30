@@ -9,6 +9,7 @@ import { MapHost } from "@/components/map/MapHost";
 import { Providers } from "@/components/providers/Providers";
 import { SiteFooter } from "@/components/SiteFooter";
 import { SiteHeader, TabBar } from "@/components/SiteNav";
+import { THEME_COLOR, THEME_SCRIPT } from "@/lib/theme";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
@@ -22,8 +23,12 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#08080b",
-  colorScheme: "dark",
+  // With a fixed theme chosen in Settings, ThemeSync points both at it.
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: THEME_COLOR.light },
+    { media: "(prefers-color-scheme: dark)", color: THEME_COLOR.dark },
+  ],
+  colorScheme: "dark light",
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
@@ -31,7 +36,16 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
+    // `suppressHydrationWarning`: the head script sets `data-theme` before React hydrates.
+    <html
+      lang="en"
+      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      suppressHydrationWarning
+    >
+      <head>
+        {/* Picks the theme before the first paint. Allowed by hash in the CSP. */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+      </head>
       <body className="flex min-h-full flex-col bg-ink text-text">
         <Providers>
           <SiteHeader />
