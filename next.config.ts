@@ -19,6 +19,15 @@ const nextConfig: NextConfig = {
     // Warnings are issued and cancelled minute to minute; NWS itself caches
     // the active-alerts endpoint for about a minute.
     alerts: { stale: 30, revalidate: MINUTE, expire: 3 * MINUTE },
+    // NWS's map service redraws zone-based alert outlines every 5 minutes.
+    outlines: { stale: MINUTE, revalidate: 2 * MINUTE, expire: 15 * MINUTE },
+    // A forecast zone or county outline: redrawn by NWS a few times a year.
+    zones: { stale: HOUR, revalidate: 7 * DAY, expire: 30 * DAY },
+    // NHC advisories come every 6 hours (3 with watches up), the outlook
+    // every 6; positions in between are special advisories.
+    tropical: { stale: MINUTE, revalidate: 10 * MINUTE, expire: HOUR },
+    // HRRR runs hourly; NDFD's near-term grids update every half hour.
+    forecast: { stale: MINUTE, revalidate: 10 * MINUTE, expire: HOUR },
     // Today's SPC reports trickle in all day.
     reportsToday: { stale: MINUTE, revalidate: 5 * MINUTE, expire: 30 * MINUTE },
     // Past days are mostly settled, but SPC does revise them for a while.

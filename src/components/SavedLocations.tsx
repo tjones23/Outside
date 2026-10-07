@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import { categoryGlyph } from "@/lib/categories";
+import { textOn } from "@/lib/color";
 import { useHydrated, useSavedLocations } from "@/lib/client-store";
 import { formatDateTime, formatMiles } from "@/lib/format";
-import { NEARBY_RADIUS_MILES, reportsNear, savedLocationStatus, warningsContaining } from "@/lib/nearby";
+import { alertsContaining, NEARBY_RADIUS_MILES, reportsNear, savedLocationStatus } from "@/lib/nearby";
 import type { SavedLocation, StormAlert, StormReport } from "@/lib/types";
 import { AddLocationForm } from "./AddLocationForm";
 import { AlertDetail, ReportDetail } from "./Details";
@@ -103,7 +104,7 @@ function LocationDetail({
   const [alert, setAlert] = useState<StormAlert | null>(null);
   const [report, setReport] = useState<StormReport | null>(null);
   const point: [number, number] = [location.lat, location.lon];
-  const warnings = warningsContaining(alerts, point);
+  const here = alertsContaining(alerts, point);
   const near = reportsNear(reports, point);
 
   if (alert) return <AlertDetail alert={alert} onClose={() => setAlert(null)} />;
@@ -123,24 +124,38 @@ function LocationDetail({
         {location.lat.toFixed(3)}, {location.lon.toFixed(3)}
       </p>
 
-      <SectionTitle>Active warnings here</SectionTitle>
-      {warnings.length === 0 ? (
+      <SectionTitle>Active alerts here</SectionTitle>
+      {here.length === 0 ? (
         <p className="text-sm text-muted">None.</p>
       ) : (
         <ul className="space-y-1.5">
-          {warnings.map((w) => (
-            <li key={w.id}>
-              <button
-                type="button"
-                onClick={() => setAlert(w)}
-                className="w-full rounded-xl px-3 py-2 text-left text-sm text-white"
-                style={{ background: w.color }}
-              >
-                <span className="block font-medium">{w.event}</span>
-                {w.expires && <span className="block text-xs opacity-90">Until {formatDateTime(w.expires)}</span>}
-              </button>
-            </li>
-          ))}
+          {here.map((w) =>
+            w.isWarning ? (
+              <li key={w.id}>
+                <button
+                  type="button"
+                  onClick={() => setAlert(w)}
+                  className="w-full rounded-xl px-3 py-2 text-left text-sm"
+                  style={{ background: w.color, color: textOn(w.color) }}
+                >
+                  <span className="block font-medium">{w.event}</span>
+                  {w.expires && <span className="block text-xs opacity-90">Until {formatDateTime(w.expires)}</span>}
+                </button>
+              </li>
+            ) : (
+              <li key={w.id}>
+                <button
+                  type="button"
+                  onClick={() => setAlert(w)}
+                  className="w-full rounded-xl border border-line bg-surface-2 px-3 py-2 text-left text-sm"
+                  style={{ borderLeft: `4px solid ${w.color}` }}
+                >
+                  <span className="block font-medium">{w.event}</span>
+                  {w.expires && <span className="block text-xs text-muted">Until {formatDateTime(w.expires)}</span>}
+                </button>
+              </li>
+            ),
+          )}
         </ul>
       )}
 

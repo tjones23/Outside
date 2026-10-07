@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { reportsNear, savedLocationStatus, warningsContaining } from "./nearby";
+import { alertsContaining, headsUpAt, reportsNear, savedLocationStatus, warningsContaining } from "./nearby";
 import { box, makeAlert, makeReport } from "./test-helpers";
 import type { LatLng, SavedLocation } from "./types";
 
@@ -13,6 +13,27 @@ describe("warningsContaining", () => {
     const watch = makeAlert("Tornado Watch", [box(home)]);
     const elsewhere = makeAlert("Tornado Warning", [box([40, -90])]);
     expect(warningsContaining([warning, watch, elsewhere], home)).toEqual([warning]);
+  });
+});
+
+describe("alertsContaining", () => {
+  it("lists every alert at a point, most important first", () => {
+    const heat = makeAlert("Heat Advisory", [box(home, 2)]);
+    const flood = makeAlert("Flood Watch", [box(home, 1)]);
+    const tor = makeAlert("Tornado Warning", [box(home)]);
+    // NWS ranks a Heat Advisory above a Flood Watch.
+    expect(alertsContaining([flood, heat, tor], home)).toEqual([tor, heat, flood]);
+    expect(warningsContaining([heat, flood, tor], home)).toEqual([tor]);
+  });
+});
+
+describe("headsUpAt", () => {
+  it("picks the most important watch or advisory, never a statement", () => {
+    const heat = makeAlert("Heat Advisory", [box(home)]);
+    const outlook = makeAlert("Hazardous Weather Outlook", [box(home)]);
+    const flood = makeAlert("Flood Watch", [box(home)]);
+    expect(headsUpAt([outlook, flood, heat], home)).toBe(heat);
+    expect(headsUpAt([outlook], home)).toBeNull();
   });
 });
 
@@ -41,6 +62,15 @@ describe("savedLocationStatus", () => {
     expect(
       savedLocationStatus(location, [], [makeReport("hail", home), makeReport("wind", home)]).label,
     ).toBe("2 reports within 50 mi");
+  });
+
+  it("falls back to a watch or advisory before reports", () => {
+    const heat = makeAlert("Heat Advisory", [box(home)]);
+    expect(savedLocationStatus(location, [heat], [makeReport("hail", home)])).toEqual({
+      label: "Heat Advisory",
+      tone: "advisory",
+      color: heat.color,
+    });
   });
 
   it("is quiet otherwise", () => {

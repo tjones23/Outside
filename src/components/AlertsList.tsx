@@ -1,11 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { alertGroupGlyph, alertLevelName } from "@/lib/alert-catalog";
 import { sortAlerts, type AlertSort } from "@/lib/alerts";
 import { formatDateTime } from "@/lib/format";
-import type { StormAlert } from "@/lib/types";
+import type { AlertLevel, StormAlert } from "@/lib/types";
 import { AlertDetail } from "./Details";
-import { AlertKindChips } from "./FilterChips";
+import { AlertGroupChips, AlertKindChips } from "./FilterChips";
 import { FiltersPanel } from "./FiltersPanel";
 import { PageHeader } from "./PageHeader";
 import { useLocation } from "./providers/LocationProvider";
@@ -19,7 +20,12 @@ const SORTS: { mode: AlertSort; label: string }[] = [
   { mode: "distance", label: "Distance" },
 ];
 
-/** Active NWS warnings and watches. */
+function count(alerts: StormAlert[], level: AlertLevel): string | null {
+  const n = alerts.filter((a) => a.level === level).length;
+  return n === 0 ? null : `${n} ${alertLevelName(level, n !== 1).toLowerCase()}`;
+}
+
+/** Active NWS warnings, watches, advisories and statements. */
 export function AlertsList() {
   const { alerts } = useFilteredData();
   const { alerts: feed } = useStormData();
@@ -43,18 +49,19 @@ export function AlertsList() {
     }
   };
 
-  const warnings = alerts.filter((a) => a.isWarning).length;
+  const counts = (["warning", "watch", "advisory", "statement"] as const).map((l) => count(alerts, l)).filter(Boolean);
 
   return (
     <>
       <PageHeader
         title="Alerts"
-        subtitle={`${warnings} warning${warnings === 1 ? "" : "s"} · ${alerts.length - warnings} watch${
-          alerts.length - warnings === 1 ? "" : "es"
-        } from the National Weather Service`}
+        subtitle={`${counts.length ? counts.join(" · ") : "Nothing active"} from the National Weather Service`}
         actions={<Button onClick={() => setShowFilters(true)}>Filters</Button>}
       />
 
+      <div className="mb-3">
+        <AlertGroupChips />
+      </div>
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <AlertKindChips />
         <span className="mx-1 h-5 w-px bg-line" aria-hidden="true" />
@@ -79,7 +86,7 @@ export function AlertsList() {
           <p className="py-12 text-center text-sm text-muted-dim">Loading alerts…</p>
         ) : (
           <EmptyState title="No active alerts">
-            No tornado or severe thunderstorm warnings or watches right now{alerts.length === 0 && feed.data?.alerts.length ? " that match your filters" : ""}.
+            Nothing active right now{feed.data?.alerts.length ? " that matches your filters" : ""}.
           </EmptyState>
         )
       ) : (
@@ -94,6 +101,7 @@ export function AlertsList() {
                 <span className="w-1.5 shrink-0" style={{ background: a.color }} aria-hidden="true" />
                 <span className="min-w-0 flex-1 px-4 py-3">
                   <span className="flex items-baseline gap-2">
+                    <span aria-hidden="true">{alertGroupGlyph(a.group)}</span>
                     <span className="font-medium">{a.event}</span>
                     {a.expires && (
                       <span className="ml-auto shrink-0 text-xs text-muted-dim">

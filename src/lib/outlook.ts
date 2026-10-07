@@ -9,15 +9,20 @@ import type { OutlookData, OutlookFeature, OutlookKind, OutlookProduct, Ring } f
  *
  * One product is a day plus a kind: categorical risk for days 1–3, or the
  * tornado / wind / hail probabilities for days 1–2.
+ *
+ * WPC's Excessive Rainfall Outlook (days 1–5) rides along as one more kind.
+ * It's published as GeoJSON too, with its risk as a number (`dn`) instead of
+ * SPC's label and colors, which `buildOutlook` fills in.
  */
 
-export const OUTLOOK_KINDS: readonly OutlookKind[] = ["categorical", "tornado", "wind", "hail"];
+export const OUTLOOK_KINDS: readonly OutlookKind[] = ["categorical", "tornado", "wind", "hail", "rainfall"];
 
 const SLUG: Record<OutlookKind, string> = {
   categorical: "cat",
   tornado: "torn",
   wind: "wind",
   hail: "hail",
+  rainfall: "ero",
 };
 
 const TITLE: Record<OutlookKind, string> = {
@@ -25,7 +30,15 @@ const TITLE: Record<OutlookKind, string> = {
   tornado: "Tornado",
   wind: "Wind",
   hail: "Hail",
+  rainfall: "Excessive Rainfall",
 };
+
+/** Short names for the Filters chips. */
+const CHIP_TITLE: Record<OutlookKind, string> = { ...TITLE, rainfall: "Excessive rain" };
+
+export function outlookKindChip(kind: OutlookKind): string {
+  return CHIP_TITLE[kind];
+}
 
 export function isOutlookKind(value: unknown): value is OutlookKind {
   return typeof value === "string" && (OUTLOOK_KINDS as readonly string[]).includes(value);
@@ -37,6 +50,7 @@ export function outlookKindTitle(kind: OutlookKind): string {
 
 /** Days SPC publishes for a kind. */
 export function availableDays(kind: OutlookKind): number[] {
+  if (kind === "rainfall") return [1, 2, 3, 4, 5];
   return kind === "categorical" ? [1, 2, 3] : [1, 2];
 }
 
@@ -48,9 +62,21 @@ export function clampDay(kind: OutlookKind, day: number): number {
 
 export function outlookProduct(day: number, kind: OutlookKind): OutlookProduct {
   const slug = SLUG[kind];
+  if (kind === "rainfall") {
+    return {
+      day,
+      kind,
+      center: "WPC",
+      id: `day${day}_${slug}`,
+      title: `Day ${day} ${TITLE[kind]}`,
+      url: `https://www.wpc.ncep.noaa.gov/exper/eromap/geojson/Day${day}_Latest.geojson`,
+      discussionUrl: "https://www.wpc.ncep.noaa.gov/qpf/excessive_rainfall_outlook_ero.php",
+    };
+  }
   return {
     day,
     kind,
+    center: "SPC",
     id: `day${day}_${slug}`,
     title: `Day ${day} ${TITLE[kind]}`,
     url: `https://www.spc.noaa.gov/products/outlook/day${day}otlk_${slug}.nolyr.geojson`,
@@ -91,6 +117,30 @@ function prop(props: unknown, key: string): string | null {
 }
 
 /**
+ * WPC's four Excessive Rainfall risk levels, in SPC's categorical colors —
+ * WPC's own map uses the same green / yellow / red / magenta.
+ */
+const ERO_LEVELS: Record<number, { label: string; detail: string; fill: string; stroke: string }> = {
+  1: { label: "MRGL", detail: "Marginal Risk of Excessive Rainfall (≥5%)", fill: "#66A366", stroke: "#005500" },
+  2: { label: "SLGT", detail: "Slight Risk of Excessive Rainfall (≥15%)", fill: "#FFE066", stroke: "#DDAA00" },
+  3: { label: "MDT", detail: "Moderate Risk of Excessive Rainfall (≥40%)", fill: "#E06666", stroke: "#CC0000" },
+  4: { label: "HIGH", detail: "High Risk of Excessive Rainfall (≥70%)", fill: "#EE99EE", stroke: "#FF00FF" },
+};
+
+/** SPC's label/fill/stroke properties, or the equivalent for a WPC ERO feature. */
+function featureStyle(props: unknown): { label: string; detail: string; fill: string | null; stroke: string | null } {
+  const dn = (props as Record<string, unknown> | null)?.dn;
+  const ero = typeof dn === "number" && !prop(props, "LABEL") ? ERO_LEVELS[dn] : undefined;
+  if (ero) return ero;
+  return {
+    label: prop(props, "LABEL") ?? "",
+    detail: prop(props, "LABEL2") ?? "",
+    fill: prop(props, "fill"),
+    stroke: prop(props, "stroke"),
+  };
+}
+
+/**
  * GeoJSON → map-ready features.
  *
  * Two passes, because hatching needs one reference latitude for the whole
@@ -106,17 +156,8 @@ export function buildOutlook(product: OutlookProduct, json: unknown): OutlookDat
       const polys = geoPolygons((f as { geometry?: unknown })?.geometry).filter(
         (p) => p.length > 0 && p[0].length > 0,
       );
-      const props = (f as { properties?: unknown })?.properties;
-      const label = prop(props, "LABEL") ?? "";
-      const detail = prop(props, "LABEL2") ?? "";
-      return {
-        polys,
-        label,
-        detail,
-        fill: prop(props, "fill"),
-        stroke: prop(props, "stroke"),
-        hatched: detectHatched(label, detail),
-      };
+      const { label, detail, fill, stroke } = featureStyle((f as { properties?: unknown })?.properties);
+      return { polys, label, detail, fill, stroke, hatched: detectHatched(label, detail) };
     })
     .filter((r) => r.polys.length > 0);
 

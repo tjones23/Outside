@@ -1,0 +1,59 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.heat.001.1",
+      "type": "Feature",
+      "geometry": null,
+      "properties": {
+        "id": "urn:oid:2.49.0.1.840.0.heat.001.1",
+        "event": "Heat Advisory",
+        "messageType": "Update",
+        "headline": "Heat Advisory issued October 7 at 4:00AM CDT until October 8 at 8:00PM CDT",
+        "areaDesc": "Dallas; Tarrant",
+        "severity": "Moderate",
+        "effective": "2026-10-07T04:00:00-05:00",
+        "expires": "2026-10-07T20:00:00-05:00",
+        "ends": "2026-10-08T20:00:00-05:00",
+        "senderName": "NWS Fort Worth TX",
+        "description": "* WHAT...Heat index values up to 108.",
+        "instruction": "Drink plenty of fluids.",
+        "affectedZones": ["https://api.weather.gov/zones/forecast/TXZ119", "https://api.weather.gov/zones/forecast/TXZ118"]
+      }
+    },
+    {
+      "id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.hurricane.001.1",
+      "type": "Feature",
+      "geometry": null,
+      "properties": {
+        "event": "Hurricane Watch",
+        "messageType": "Alert",
+        "areaDesc": "Coastal Cameron",
+        "severity": "Extreme",
+        "effective": "2026-10-07T10:00:00-05:00",
+        "expires": "2026-10-07T22:00:00-05:00",
+        "ends": null,
+        "affectedZones": ["https://api.weather.gov/zones/forecast/LAZ073", "not-a-zone"]
+      }
+    },
+    {
+      "id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.cancelled.001.1",
+      "type": "Feature",
+      "geometry": null,
+      "properties": {
+        "event": "Flood Warning",
+        "messageType": "Cancel",
+        "affectedZones": []
+      }
+    },
+    {
+      "id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.mystery.001.1",
+      "type": "Feature",
+      "geometry": null,
+      "properties": {
+        "event": "Volcanic Smog Advisory",
+        "messageType": "Alert"
+      }
+    }
+  ]
+}

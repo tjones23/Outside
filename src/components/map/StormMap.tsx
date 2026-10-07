@@ -1,10 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MapContainer, Pane, TileLayer, ZoomControl, useMap } from "react-leaflet";
+import { alertContains, byPriority } from "@/lib/alerts";
+import { forecastProduct } from "@/lib/forecast";
 import { US_BOUNDS } from "@/lib/geo";
-import type { LatLng, StormAlert, StormReport } from "@/lib/types";
-import { AlertDetail, ReportDetail } from "../Details";
+import { RADAR_MAX_NATIVE_ZOOM } from "@/lib/radar";
+import type { LatLng, RadarFrame, StormAlert, StormReport, TropicalStorm } from "@/lib/types";
+import { AlertDetail, ReportDetail, TropicalDetail } from "../Details";
 import { CategoryChips } from "../FilterChips";
 import { FiltersPanel } from "../FiltersPanel";
 import { NearbyBanner } from "../NearbyBanner";
@@ -12,9 +15,12 @@ import { useLocation } from "../providers/LocationProvider";
 import { useStormData } from "../providers/StormDataProvider";
 import { useFilteredData } from "../providers/useFilteredData";
 import { useTheme } from "../providers/useTheme";
-import { AlertLayer, DamageLayer, OutlookLayer, ReportLayer, UserLocationMarker } from "./layers";
+import { ForecastLegend } from "./ForecastLegend";
+import { AlertLayer, AlertPickPopup, DamageLayer, OutlookLayer, ReportLayer, UserLocationMarker } from "./layers";
 import { OutlookLegend } from "./OutlookLegend";
-import { RadarLayer, RadarTimeline, useRadarPlayback } from "./radar";
+import { FrameLayer, FrameTimeline, RADAR_LOOP_FRAMES, useFramePlayback } from "./radar";
+import { StormChips } from "./StormChips";
+import { TropicalAreas, TropicalTracks } from "./tropical";
 
 /**
  * Layer order, bottom to top. Each group gets its own pane so a feed that
@@ -29,12 +35,17 @@ import { RadarLayer, RadarTimeline, useRadarPlayback } from "./radar";
 const PANES = {
   outlook: 405,
   damage: 410,
+  tropicalAreas: 412,
   alerts: 415,
   labels: 420,
+  tropical: 423,
   alertMarkers: 425,
   reports: 430,
   you: 435,
 } as const;
+
+const RADAR_ATTRIBUTION_HTML = '<a href="https://www.rainviewer.com/">RainViewer</a>';
+const NO_FRAMES: RadarFrame[] = [];
 
 /**
  * Esri's Dark Gray and Light Gray Canvas, one per theme: free and keyless
@@ -50,7 +61,14 @@ const ESRI_MAX_NATIVE_ZOOM = 16;
 
 export default function StormMap({ active }: { active: boolean }) {
   const { alerts, reports, damageAreas, filters } = useFilteredData();
-  const { outlook, radar, alerts: alertFeed, reports: reportFeed } = useStormData();
+  const {
+    outlook,
+    radar,
+    tropical,
+    forecast,
+    alerts: alertFeed,
+    reports: reportFeed,
+  } = useStormData();
   const location = useLocation();
   const theme = useTheme();
   const canvas = ESRI_CANVAS[theme];
@@ -58,18 +76,48 @@ export default function StormMap({ active }: { active: boolean }) {
   const [showFilters, setShowFilters] = useState(false);
   const [selectedAlert, setSelectedAlert] = useState<StormAlert | null>(null);
   const [selectedReport, setSelectedReport] = useState<StormReport | null>(null);
-  const [recenter, setRecenter] = useState<{ to: LatLng; n: number } | null>(null);
+  const [selectedStorm, setSelectedStorm] = useState<TropicalStorm | null>(null);
+  const [pick, setPick] = useState<{ at: LatLng; alerts: StormAlert[]; n: number } | null>(null);
+  const [recenter, setRecenter] = useState<{ to: LatLng; zoom: number; n: number } | null>(null);
 
+  // Radar and a forecast animation share one imagery slot; filters never turn both on.
   const manifest = filters.showRadar ? (radar.data?.manifest ?? null) : null;
-  const playback = useRadarPlayback(manifest);
+  const radarFrames = useMemo(
+    () => (manifest ? [...manifest.past.slice(-RADAR_LOOP_FRAMES), ...manifest.nowcast] : NO_FRAMES),
+    [manifest],
+  );
+  const forecastData = filters.forecastProduct && forecast.data?.product === filters.forecastProduct ? forecast.data : null;
+  const forecastFrames = forecastData?.frames ?? NO_FRAMES;
+  const radarPlayback = useFramePlayback(radarFrames, "newest-first");
+  const forecastPlayback = useFramePlayback(forecastFrames, "oldest-first");
   const outlookData = outlook.data;
+  const tropicalData = filters.showTropical ? tropical.data : null;
+
+  // Every alert under a tap, most important first — the polygons stack.
+  const pickAt = useCallback(
+    (at: LatLng, alert?: StormAlert) => {
+      const here = alerts.filter((a) => a.id === alert?.id || alertContains(a, at)).sort(byPriority);
+      if (here.length > 0) setPick((p) => ({ at, alerts: here, n: (p?.n ?? 0) + 1 }));
+    },
+    [alerts],
+  );
+  const closePick = useCallback(() => setPick(null), []);
+
+  const flyTo = useCallback((to: LatLng, zoom: number) => setRecenter((r) => ({ to, zoom, n: (r?.n ?? 0) + 1 })), []);
 
   const loading = alertFeed.loading || reportFeed.loading;
-  const errors = [alertFeed.error && "warnings", reportFeed.error && "reports", outlook.error && "outlook", radar.error && "radar"].filter(Boolean);
+  const errors = [
+    alertFeed.error && "alerts",
+    reportFeed.error && "reports",
+    outlook.error && "outlook",
+    radar.error && "radar",
+    tropical.error && "tropical",
+    forecast.error && "forecast",
+  ].filter(Boolean);
 
   const locate = async () => {
     const fix = await location.request();
-    if (fix) setRecenter((r) => ({ to: fix, n: (r?.n ?? 0) + 1 }));
+    if (fix) flyTo(fix, 9);
   };
 
   return (
@@ -88,7 +136,24 @@ export default function StormMap({ active }: { active: boolean }) {
           maxZoom={19}
           zIndex={1}
         />
-        <RadarLayer playback={playback} opacity={filters.radarOpacity} />
+        {manifest && (
+          <FrameLayer
+            playback={radarPlayback}
+            opacity={filters.radarOpacity}
+            order="newest-first"
+            maxNativeZoom={RADAR_MAX_NATIVE_ZOOM}
+            attribution={RADAR_ATTRIBUTION_HTML}
+          />
+        )}
+        {forecastData && (
+          <FrameLayer
+            playback={forecastPlayback}
+            opacity={filters.radarOpacity}
+            order="oldest-first"
+            maxNativeZoom={forecastProduct(forecastData.product).maxNativeZoom}
+            attribution={forecastData.attribution}
+          />
+        )}
 
         <Pane name="outlook" style={{ zIndex: PANES.outlook }}>
           {outlookData && <OutlookLayer data={outlookData} theme={theme} />}
@@ -96,8 +161,11 @@ export default function StormMap({ active }: { active: boolean }) {
         <Pane name="damage" style={{ zIndex: PANES.damage }}>
           <DamageLayer areas={damageAreas} />
         </Pane>
+        <Pane name="tropicalAreas" style={{ zIndex: PANES.tropicalAreas }}>
+          {tropicalData && <TropicalAreas data={tropicalData} theme={theme} />}
+        </Pane>
         <Pane name="alerts" style={{ zIndex: PANES.alerts }}>
-          <AlertLayer alerts={alerts} onSelect={setSelectedAlert} markers={false} />
+          <AlertLayer alerts={alerts} onPick={pickAt} markers={false} />
         </Pane>
         <Pane name="labels" style={{ zIndex: PANES.labels, pointerEvents: "none" }}>
           <TileLayer
@@ -106,8 +174,11 @@ export default function StormMap({ active }: { active: boolean }) {
             maxZoom={19}
           />
         </Pane>
+        <Pane name="tropical" style={{ zIndex: PANES.tropical }}>
+          {tropicalData && <TropicalTracks data={tropicalData} theme={theme} onSelect={setSelectedStorm} />}
+        </Pane>
         <Pane name="alertMarkers" style={{ zIndex: PANES.alertMarkers }}>
-          <AlertLayer alerts={alerts} onSelect={setSelectedAlert} markers />
+          <AlertLayer alerts={alerts} onPick={pickAt} markers />
         </Pane>
         <Pane name="reports" style={{ zIndex: PANES.reports }}>
           <ReportLayer reports={reports} onSelect={setSelectedReport} />
@@ -116,9 +187,18 @@ export default function StormMap({ active }: { active: boolean }) {
         <Pane name="you" style={{ zIndex: PANES.you }}>
           {location.coord && <UserLocationMarker at={location.coord} accuracy={location.accuracy} />}
         </Pane>
+        {pick && (
+          <AlertPickPopup
+            key={pick.n}
+            at={pick.at}
+            alerts={pick.alerts}
+            onSelect={setSelectedAlert}
+            onClose={closePick}
+          />
+        )}
         <ZoomControl position="bottomright" />
         <FitOnShow active={active} />
-        {recenter && <Recenter key={recenter.n} to={recenter.to} />}
+        {recenter && <Recenter key={recenter.n} to={recenter.to} zoom={recenter.zoom} />}
       </MapContainer>
 
       {loading && (
@@ -136,6 +216,15 @@ export default function StormMap({ active }: { active: boolean }) {
           <div className="rounded-full">
             <CategoryChips />
           </div>
+          {tropicalData && tropicalData.storms.length > 0 && (
+            <StormChips
+              storms={tropicalData.storms}
+              onSelect={(storm) => {
+                flyTo(storm.position, 6);
+                setSelectedStorm(storm);
+              }}
+            />
+          )}
           {errors.length > 0 && (
             <p className="w-fit rounded-full border border-danger/40 bg-ink/85 px-3 py-1 text-xs text-text backdrop-blur-md">
               Couldn&apos;t refresh {errors.join(", ")} — retrying.
@@ -164,9 +253,28 @@ export default function StormMap({ active }: { active: boolean }) {
             <OutlookLegend data={outlookData} theme={theme} />
           </div>
         )}
-        {manifest && playback.frames.length > 0 && (
+        {manifest && radarFrames.length > 0 && (
           <div className="pointer-events-auto w-full max-w-md">
-            <RadarTimeline playback={playback} attribution={manifest.attribution} />
+            <FrameTimeline playback={radarPlayback} label="radar" attribution={manifest.attribution} />
+          </div>
+        )}
+        {filters.forecastProduct && (
+          <div className="pointer-events-auto flex w-full max-w-md flex-col gap-2">
+            <ForecastLegend id={filters.forecastProduct} data={forecastData} />
+            {forecastData && forecastFrames.length > 0 ? (
+              <FrameTimeline
+                playback={forecastPlayback}
+                label="forecast"
+                attribution={forecastProduct(forecastData.product).source}
+                withDay={forecastData.product !== "hrrr-refd"}
+              />
+            ) : (
+              forecast.loading && (
+                <p className="w-fit rounded-full border border-line bg-ink/85 px-3 py-1 text-xs text-muted backdrop-blur-md">
+                  Loading forecast…
+                </p>
+              )
+            )}
           </div>
         )}
       </div>
@@ -174,6 +282,13 @@ export default function StormMap({ active }: { active: boolean }) {
       {showFilters && <FiltersPanel onClose={() => setShowFilters(false)} />}
       {selectedAlert && <AlertDetail alert={selectedAlert} onClose={() => setSelectedAlert(null)} />}
       {selectedReport && <ReportDetail report={selectedReport} onClose={() => setSelectedReport(null)} />}
+      {selectedStorm && (
+        <TropicalDetail
+          // Show the latest advisory's numbers even if the sheet was opened from an older poll.
+          storm={tropicalData?.storms.find((s) => s.id === selectedStorm.id) ?? selectedStorm}
+          onClose={() => setSelectedStorm(null)}
+        />
+      )}
     </div>
   );
 }
@@ -228,10 +343,11 @@ function FitOnShow({ active }: { active: boolean }) {
   return null;
 }
 
-function Recenter({ to }: { to: LatLng }) {
+/** Fly to a point, zooming in to at least `zoom` (never out). */
+function Recenter({ to, zoom }: { to: LatLng; zoom: number }) {
   const map = useMap();
   useEffect(() => {
-    map.flyTo(to, Math.max(map.getZoom(), 9), { duration: 0.8 });
-  }, [map, to]);
+    map.flyTo(to, Math.max(map.getZoom(), zoom), { duration: 0.8 });
+  }, [map, to, zoom]);
   return null;
 }

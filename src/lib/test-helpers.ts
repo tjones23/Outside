@@ -1,3 +1,5 @@
+import { eventInfo, eventLevel } from "./alert-catalog";
+import { alertCategory } from "./alerts";
 import type { LatLng, Ring, StormAlert, StormCategory, StormReport } from "./types";
 
 /** Minimal builders for tests. Not imported by app code. */
@@ -40,6 +42,8 @@ export function box([lat, lon]: LatLng, half = 0.2): Ring {
 }
 
 export function makeAlert(event: string, polygons: Ring[], extra: Partial<StormAlert> = {}): StormAlert {
+  const info = eventInfo(event);
+  const level = eventLevel(event);
   return {
     id: `a${seq++}`,
     event,
@@ -50,12 +54,17 @@ export function makeAlert(event: string, polygons: Ring[], extra: Partial<StormA
     expires: null,
     senderName: null,
     description: null,
+    instruction: null,
     polygons,
-    category: /tornado/i.test(event) ? "tornado" : "wind",
-    isWarning: /warning/i.test(event),
-    isWatch: /watch/i.test(event),
+    stormBased: polygons.length > 0,
+    category: alertCategory(event),
+    group: info.group,
+    level,
+    priority: info.priority,
+    isWarning: level === "warning",
+    isWatch: level === "watch",
     severityRank: 1,
-    color: "#FF0000",
+    color: info.color,
     centroid: null,
     ...extra,
   };

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { adjusted, outlookColor, outlookFillDark, outlookStrokeLight, rgbComponents, toHex } from "./color";
+import { adjusted, outlookColor, outlookFillDark, outlookStrokeLight, rgbComponents, textOn, toHex } from "./color";
 
 describe("rgbComponents", () => {
   it("parses hex with or without #", () => {
@@ -55,5 +55,15 @@ describe("outlookStrokeLight", () => {
 describe("toHex", () => {
   it("round-trips", () => {
     expect(toHex(rgbComponents("#4169E1")!)).toBe("#4169E1");
+  });
+});
+
+describe("textOn", () => {
+  it("puts black on light alert colors and white on dark ones", () => {
+    expect(textOn("#00FF00")).toBe("#000000"); // Flood Warning
+    expect(textOn("#FFE4B5")).toBe("#000000"); // Special Weather Statement
+    expect(textOn("#8B0000")).toBe("#FFFFFF"); // Flash Flood Warning
+    expect(textOn("#0000FF")).toBe("#FFFFFF");
+    expect(textOn("nonsense")).toBe("#FFFFFF");
   });
 });

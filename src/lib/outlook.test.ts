@@ -16,6 +16,7 @@ describe("outlookProduct", () => {
     expect(outlookProduct(2, "tornado")).toEqual({
       day: 2,
       kind: "tornado",
+      center: "SPC",
       id: "day2_torn",
       title: "Day 2 Tornado",
       url: "https://www.spc.noaa.gov/products/outlook/day2otlk_torn.nolyr.geojson",
@@ -29,6 +30,31 @@ describe("outlookProduct", () => {
     expect(availableDays("hail")).toEqual([1, 2]);
     expect(clampDay("hail", 3)).toBe(1);
     expect(clampDay("categorical", 3)).toBe(3);
+    expect(availableDays("rainfall")).toEqual([1, 2, 3, 4, 5]);
+    expect(clampDay("rainfall", 5)).toBe(5);
+  });
+
+  it("points the excessive rainfall kind at WPC", () => {
+    const ero = outlookProduct(3, "rainfall");
+    expect(ero.center).toBe("WPC");
+    expect(ero.url).toBe("https://www.wpc.ncep.noaa.gov/exper/eromap/geojson/Day3_Latest.geojson");
+    expect(ero.title).toBe("Day 3 Excessive Rainfall");
+  });
+});
+
+describe("buildOutlook with WPC's Excessive Rainfall Outlook", () => {
+  const data = buildOutlook(outlookProduct(3, "rainfall"), jsonFixture("wpc-ero-day3.geojson"));
+
+  it("labels and colors each risk level from its number", () => {
+    expect(data.features.map((f) => f.label)).toEqual(["MRGL", "SLGT", "MDT"]);
+    expect(data.features[2].detail).toMatch(/Moderate Risk of Excessive Rainfall/);
+    // Same palette as SPC's categorical: moderate is red.
+    expect(data.features[2].swatchColor).not.toBe(data.features[0].swatchColor);
+    expect(data.features.every((f) => !f.isHatched && !f.isGeneralThunderstorm)).toBe(true);
+  });
+
+  it("reads every polygon", () => {
+    expect(data.features.every((f) => f.rings.length > 0 && f.rings[0].length > 3)).toBe(true);
   });
 });
 

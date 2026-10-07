@@ -45,6 +45,27 @@ describe("passesAlert", () => {
   it("respects the category", () => {
     expect(passesAlert(f({ showTornado: false }), warning)).toBe(false);
   });
+
+  it("leaves the storm categories out of non-convective alerts", () => {
+    const heat = makeAlert("Heat Advisory", []);
+    expect(passesAlert(f({ showTornado: false, showWind: false, showHail: false }), heat)).toBe(true);
+  });
+
+  it("filters advisories and statements as tiers of their own", () => {
+    const advisory = makeAlert("Coastal Flood Advisory", []);
+    const statement = makeAlert("Coastal Flood Statement", []);
+    expect(passesAlert(f(), advisory)).toBe(true);
+    expect(passesAlert(f({ showAdvisories: false }), advisory)).toBe(false);
+    // Statements are off until asked for.
+    expect(passesAlert(f(), statement)).toBe(false);
+    expect(passesAlert(f({ showStatements: true }), statement)).toBe(true);
+  });
+
+  it("filters by hazard family, with marine off by default", () => {
+    expect(passesAlert(f(), makeAlert("Small Craft Advisory", []))).toBe(false);
+    expect(passesAlert(f({ alertGroups: ["marine"] }), makeAlert("Small Craft Advisory", []))).toBe(true);
+    expect(passesAlert(f({ alertGroups: ["severe"] }), makeAlert("Heat Advisory", []))).toBe(false);
+  });
 });
 
 describe("normalizeFilters", () => {
@@ -73,6 +94,30 @@ describe("normalizeFilters", () => {
   it("clamps the outlook day to one the kind publishes", () => {
     expect(normalizeFilters({ outlookKind: "hail", outlookDay: 3 }).outlookDay).toBe(1);
     expect(normalizeFilters({ outlookKind: "categorical", outlookDay: 3 }).outlookDay).toBe(3);
+    expect(normalizeFilters({ outlookKind: "rainfall", outlookDay: 5 }).outlookDay).toBe(5);
+  });
+
+  it("keeps only known alert groups, in catalog order", () => {
+    expect(normalizeFilters({ alertGroups: ["heat", "bogus", "severe"] }).alertGroups).toEqual(["severe", "heat"]);
+    expect(normalizeFilters({ alertGroups: "heat" }).alertGroups).toEqual(DEFAULT_FILTERS.alertGroups);
+    expect(normalizeFilters({ alertGroups: [] }).alertGroups).toEqual([]);
+  });
+
+  it("never runs radar and a forecast animation at once", () => {
+    expect(normalizeFilters({ showRadar: true, forecastProduct: "hrrr-refd" })).toMatchObject({
+      showRadar: false,
+      forecastProduct: "hrrr-refd",
+    });
+    expect(normalizeFilters({ showRadar: true, forecastProduct: "gfs" })).toMatchObject({
+      showRadar: true,
+      forecastProduct: null,
+    });
+  });
+
+  it("reads settings saved before alerts, tropical and forecasts existed", () => {
+    const old = { ...DEFAULT_FILTERS } as Record<string, unknown>;
+    for (const k of ["alertGroups", "showAdvisories", "showStatements", "showTropical", "forecastProduct"]) delete old[k];
+    expect(normalizeFilters(old)).toEqual(DEFAULT_FILTERS);
   });
 });
 

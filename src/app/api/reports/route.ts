@@ -9,5 +9,5 @@ export async function GET(request: NextRequest) {
   if (!Number.isInteger(days) || days < 1 || days > 5) {
     return badRequest("days must be a whole number from 1 to 5");
   }
-  return respond("storm reports", await getRecentReports(days, new Date()), (data) => data);
+  return respond("storm reports", await getRecentReports(days, new Date()), (data) => data, request);
 }

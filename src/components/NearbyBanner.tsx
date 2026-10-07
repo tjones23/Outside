@@ -1,8 +1,9 @@
 "use client";
 
 import { categoryColor, categoryGlyph } from "@/lib/categories";
+import { textOn } from "@/lib/color";
 import { formatDateTime, formatMiles } from "@/lib/format";
-import { NEARBY_RADIUS_MILES, reportsNear, warningsContaining } from "@/lib/nearby";
+import { headsUpAt, NEARBY_RADIUS_MILES, reportsNear, warningsContaining } from "@/lib/nearby";
 import { useLocation } from "./providers/LocationProvider";
 import { useFilteredData } from "./providers/useFilteredData";
 
@@ -12,7 +13,7 @@ import { useFilteredData } from "./providers/useFilteredData";
  */
 export function NearbyBanner({ onSelectAlert }: { onSelectAlert?: (id: string) => void }) {
   const { coord } = useLocation();
-  const { allAlerts, reports } = useFilteredData();
+  const { allAlerts, alerts, reports } = useFilteredData();
   if (!coord) return null;
 
   // Every warning, regardless of filters: being inside one always matters.
@@ -22,12 +23,30 @@ export function NearbyBanner({ onSelectAlert }: { onSelectAlert?: (id: string) =
       <button
         type="button"
         onClick={() => onSelectAlert?.(warning.id)}
-        className="w-full rounded-xl px-4 py-2.5 text-left text-sm font-medium text-white shadow-lg"
-        style={{ background: warning.color }}
+        className="w-full rounded-xl px-4 py-2.5 text-left text-sm font-medium shadow-lg"
+        style={{ background: warning.color, color: textOn(warning.color) }}
       >
         <span className="block">You are in a {warning.event}</span>
         {warning.expires && (
           <span className="block text-xs font-normal opacity-90">Until {formatDateTime(warning.expires)}</span>
+        )}
+      </button>
+    );
+  }
+
+  // A watch or advisory where you are — only the kinds your filters show.
+  const headsUp = headsUpAt(alerts, coord);
+  if (headsUp) {
+    return (
+      <button
+        type="button"
+        onClick={() => onSelectAlert?.(headsUp.id)}
+        className="w-full rounded-xl border border-line bg-ink/85 px-4 py-2.5 text-left text-sm shadow-lg backdrop-blur-md"
+        style={{ borderLeft: `4px solid ${headsUp.color}` }}
+      >
+        <span className="block font-medium">{headsUp.event} where you are</span>
+        {headsUp.expires && (
+          <span className="block text-xs text-muted">Until {formatDateTime(headsUp.expires)}</span>
         )}
       </button>
     );

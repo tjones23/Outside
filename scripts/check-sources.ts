@@ -7,7 +7,18 @@
  *
  *   npm run check:sources
  */
-import { fetchAlerts, fetchGeocode, fetchOutlook, fetchRadar, fetchReportDay, userAgent } from "../src/lib/sources/upstream";
+import {
+  fetchAlertFeed,
+  fetchAlerts,
+  fetchForecast,
+  fetchGeocode,
+  fetchOutlook,
+  fetchRadar,
+  fetchReportDay,
+  fetchTropical,
+  fetchWwaOutlines,
+  userAgent,
+} from "../src/lib/sources/upstream";
 import { outlookProduct } from "../src/lib/outlook";
 import { convectiveDate } from "../src/lib/reports";
 import { RADAR_MAX_NATIVE_ZOOM } from "../src/lib/radar";
@@ -47,9 +58,20 @@ async function main(): Promise<void> {
   const now = new Date();
 
   await check("NWS active alerts", async () => {
-    const alerts = await fetchAlerts();
+    const { alerts } = await fetchAlertFeed();
     const warnings = alerts.filter((a) => a.isWarning).length;
     return `${alerts.length} active (${warnings} warnings)`;
+  });
+
+  await check("NWS alert outlines (map svc)", async () => {
+    const outlines = await fetchWwaOutlines();
+    return `${Object.keys(outlines).length} zone-based alerts outlined`;
+  });
+
+  await check("NWS alerts, joined", async () => {
+    const alerts = await fetchAlerts();
+    const drawn = alerts.filter((a) => a.polygons.length > 0).length;
+    return `${drawn} of ${alerts.length} have an outline`;
   });
 
   await check("SPC reports (today.csv)", async () => {
@@ -72,6 +94,35 @@ async function main(): Promise<void> {
     const { features } = await fetchOutlook(outlookProduct(1, "tornado"));
     const hatched = features.filter((f) => f.isHatched).length;
     return features.length ? `${features.length} areas, ${hatched} hatched` : "no risk areas";
+  });
+
+  await check("WPC excessive rainfall d1", async () => {
+    const { features } = await fetchOutlook(outlookProduct(1, "rainfall"));
+    return features.length ? features.map((f) => f.label).join(" ") : "no risk areas";
+  });
+
+  await check("NHC storms + outlook", async () => {
+    const { storms, outlook, disturbances } = await fetchTropical();
+    const named = storms.map((s) => `${s.name} (${s.forecast.length} pts, ${s.cone.length ? "cone" : "no cone"})`);
+    return `${storms.length} storms${named.length ? `: ${named.join(", ")}` : ""}; ${outlook.length} outlook areas, ${disturbances.length} disturbances`;
+  });
+
+  await check("HRRR future radar (IEM)", async () => {
+    const { frames, runTime } = await fetchForecast("hrrr-refd", Date.now());
+    const status = await tileStatus(frames[0].url, 6);
+    if (status !== 200) throw new Error(`tile HTTP ${status}`);
+    return `${frames.length} frames, run ${new Date((runTime ?? 0) * 1000).toISOString().slice(11, 16)}Z, tile 200`;
+  });
+
+  await check("NDFD temperature (WMS)", async () => {
+    const { frames } = await fetchForecast("ndfd-temp", Date.now());
+    const first = frames[0];
+    // Web Mercator only: the service doesn't offer EPSG:4326. This box is Oklahoma.
+    const bbox = "-11131949,3503549,-10018754,4163881";
+    const tile = `${first.url}?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetMap&LAYERS=${first.wms!.layers}&STYLES=&SRS=EPSG:3857&BBOX=${bbox}&WIDTH=256&HEIGHT=256&FORMAT=image/png&TRANSPARENT=true&VTIT=${first.wms!.params.vtit}`;
+    const response = await fetch(tile);
+    if (!response.ok) throw new Error(`GetMap HTTP ${response.status}`);
+    return `${frames.length} frames from ${first.wms!.params.vtit}Z, GetMap 200`;
   });
 
   let latestFrame: string | null = null;

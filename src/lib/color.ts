@@ -102,3 +102,17 @@ function hsvToRgb(h: number, s: number, v: number): Rgb {
   else rgb = [c, 0, x];
   return [rgb[0] + m, rgb[1] + m, rgb[2] + m];
 }
+
+/**
+ * Black or white, whichever reads better on `hex` (WCAG relative luminance).
+ * NWS colors run from dark red to lime and pale cyan; white text on a Flood
+ * Warning's #00FF00 would be unreadable.
+ */
+export function textOn(hex: string): "#000000" | "#FFFFFF" {
+  const c = rgbComponents(hex);
+  if (!c) return "#FFFFFF";
+  const lin = (v: number) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
+  const l = 0.2126 * lin(c[0]) + 0.7152 * lin(c[1]) + 0.0722 * lin(c[2]);
+  // Contrast with white is (1.05)/(l+0.05); with black (l+0.05)/0.05. Equal at l ≈ 0.179.
+  return l > 0.179 ? "#000000" : "#FFFFFF";
+}

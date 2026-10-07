@@ -1,13 +1,14 @@
 "use client";
 
-import { divIcon } from "leaflet";
-import { memo, type ReactNode } from "react";
+import { divIcon, type LatLngExpression, type LeafletMouseEvent } from "leaflet";
+import { memo, useMemo, type ReactNode } from "react";
 import { Circle, CircleMarker, Marker, Polygon, Polyline, Popup } from "react-leaflet";
+import { alertLevelName } from "@/lib/alert-catalog";
 import { categoryColor, categoryGlyph } from "@/lib/categories";
 import { formatDateTime } from "@/lib/format";
 import { featureColors } from "@/lib/outlook";
 import type { Theme } from "@/lib/theme";
-import type { DamageArea, LatLng, OutlookData, StormAlert, StormReport } from "@/lib/types";
+import type { AlertLevel, DamageArea, LatLng, OutlookData, StormAlert, StormReport } from "@/lib/types";
 
 /**
  * The map's vector layers. Each is memoized on its data so the radar
@@ -19,11 +20,11 @@ import type { DamageArea, LatLng, OutlookData, StormAlert, StormReport } from "@
  * otherwise puts a popup in the pane of the `<Pane>` it's rendered inside —
  * alongside that pane's vector layer, which covers it and takes its clicks.
  */
-function MapPopup({ children }: { children: ReactNode }) {
+export function MapPopup({ children }: { children: ReactNode }) {
   return <Popup pane="popupPane">{children}</Popup>;
 }
 
-function PopupButton({ onClick }: { onClick: () => void }) {
+export function PopupButton({ onClick }: { onClick: () => void }) {
   return (
     <button
       type="button"
@@ -41,14 +42,10 @@ export const OutlookLayer = memo(function OutlookLayer({ data, theme }: { data: 
       {data.features.map((f, i) => {
         const { fill, stroke } = featureColors(f, theme);
         const weight = f.isHatched ? ((f.cigLevel ?? 1) >= 2 ? 3 : 2) : 1.5;
-        // General thunder covers half the country; clicking it would just
-        // get in the way of clicking the map.
-        const interactive = !f.isGeneralThunderstorm;
         return f.rings.map((ring, j) => (
           <Polygon
             key={`o-${i}-${j}`}
             positions={ring}
-            interactive={interactive}
             pathOptions={{
               color: stroke,
               weight,
@@ -59,20 +56,20 @@ export const OutlookLayer = memo(function OutlookLayer({ data, theme }: { data: 
               dashArray: f.isHatched ? "6 4" : undefined,
             }}
           >
-            {interactive && (
-              <MapPopup>
-                <strong className="block">{f.detail || f.label}</strong>
-                <span className="block text-muted">{data.product.title}</span>
-                <a
-                  href={data.product.discussionUrl}
-                  target="_blank"
-                  rel="noreferrer noopener"
-                  className="mt-1 inline-block text-accent"
-                >
-                  SPC discussion ↗
-                </a>
-              </MapPopup>
-            )}
+            <MapPopup>
+              <strong className="block">{f.detail || f.label}</strong>
+              <span className="block text-muted">
+                {data.product.center} {data.product.title}
+              </span>
+              <a
+                href={data.product.discussionUrl}
+                target="_blank"
+                rel="noreferrer noopener"
+                className="mt-1 inline-block text-accent"
+              >
+                {data.product.center} discussion ↗
+              </a>
+            </MapPopup>
           </Polygon>
         ));
       })}
@@ -115,40 +112,51 @@ export const DamageLayer = memo(function DamageLayer({ areas }: { areas: DamageA
   );
 });
 
-function AlertPopup({ alert, onSelect }: { alert: StormAlert; onSelect: (a: StormAlert) => void }) {
-  return (
-    <MapPopup>
-      <strong className="block">{alert.event}</strong>
-      {alert.areaDesc && <span className="block clamp-2 text-muted">{alert.areaDesc}</span>}
-      {alert.expires && <span className="block text-muted-dim">Until {formatDateTime(alert.expires)}</span>}
-      <PopupButton onClick={() => onSelect(alert)} />
-    </MapPopup>
-  );
-}
+/** How each tier is drawn: warnings solid and bold, watches dashed, the rest lighter. */
+const LEVEL_STYLE: Record<AlertLevel, { weight: number; fillOpacity: number; dashArray?: string }> = {
+  warning: { weight: 2.5, fillOpacity: 0.22 },
+  watch: { weight: 1.5, fillOpacity: 0.08, dashArray: "6 5" },
+  advisory: { weight: 1.5, fillOpacity: 0.16 },
+  statement: { weight: 1, fillOpacity: 0.08, dashArray: "2 4" },
+};
 
-/** Warning/watch polygons, or (with `markers`) a dot at each one's center. */
+/**
+ * Warning, watch and advisory polygons, or (with `markers`) a dot at the
+ * middle of each storm-based warning so small ones can still be tapped.
+ *
+ * Zone-based alerts stack — a Heat Advisory, a Flood Watch and a Coastal
+ * Flood Warning can all cover one town — so a tap doesn't open the topmost
+ * polygon's popup; it reports where it landed (`onPick`), and the map lists
+ * every alert there.
+ */
 export const AlertLayer = memo(function AlertLayer({
   alerts,
-  onSelect,
+  onPick,
   markers,
 }: {
   alerts: StormAlert[];
-  onSelect: (a: StormAlert) => void;
+  onPick: (at: LatLng, alert?: StormAlert) => void;
   markers: boolean;
 }) {
+  // Least important first, so the most important draws on top.
+  const ordered = useMemo(() => [...alerts].sort((a, b) => b.priority - a.priority), [alerts]);
+  const handlers = useMemo(
+    () => ({ click: (e: LeafletMouseEvent) => onPick([e.latlng.lat, e.latlng.lng]) }),
+    [onPick],
+  );
+
   if (markers) {
     return (
       <>
-        {alerts.map((a) =>
-          a.centroid ? (
+        {ordered.map((a) =>
+          a.stormBased && a.isWarning && a.centroid ? (
             <CircleMarker
               key={`ac-${a.id}`}
               center={a.centroid}
               radius={6}
               pathOptions={{ color: "#fff", weight: 1.5, fillColor: a.color, fillOpacity: 1 }}
-            >
-              <AlertPopup alert={a} onSelect={onSelect} />
-            </CircleMarker>
+              eventHandlers={{ click: () => onPick(a.centroid!, a) }}
+            />
           ) : null,
         )}
       </>
@@ -156,26 +164,69 @@ export const AlertLayer = memo(function AlertLayer({
   }
   return (
     <>
-      {alerts.flatMap((a) =>
-        a.polygons.map((ring, j) => (
-          <Polygon
-            key={`a-${a.id}-${j}`}
-            positions={ring}
-            pathOptions={{
-              color: a.color,
-              weight: a.isWatch ? 1.5 : 2.5,
-              dashArray: a.isWatch ? "6 5" : undefined,
-              fillColor: a.color,
-              fillOpacity: a.isWatch ? 0.08 : 0.22,
-            }}
-          >
-            <AlertPopup alert={a} onSelect={onSelect} />
-          </Polygon>
-        )),
+      {ordered.flatMap((a) =>
+        a.polygons.map((ring, j) => {
+          const style = LEVEL_STYLE[a.level];
+          return (
+            <Polygon
+              key={`a-${a.id}-${j}`}
+              positions={ring}
+              eventHandlers={handlers}
+              pathOptions={{
+                color: a.color,
+                weight: style.weight,
+                dashArray: style.dashArray,
+                fillColor: a.color,
+                fillOpacity: style.fillOpacity,
+              }}
+            />
+          );
+        }),
       )}
     </>
   );
 });
+
+/** Every alert at a tapped point, most important first; tap one for its details. */
+export function AlertPickPopup({
+  at,
+  alerts,
+  onSelect,
+  onClose,
+}: {
+  at: LatLng;
+  alerts: StormAlert[];
+  onSelect: (a: StormAlert) => void;
+  onClose: () => void;
+}) {
+  const handlers = useMemo(() => ({ remove: onClose }), [onClose]);
+  return (
+    <Popup position={at as LatLngExpression} pane="popupPane" eventHandlers={handlers} maxWidth={300}>
+      <span className="mb-1 block text-xs text-muted-dim">
+        {alerts.length} alert{alerts.length === 1 ? "" : "s"} here
+      </span>
+      <ul className="max-h-64 space-y-1 overflow-y-auto">
+        {alerts.map((a) => (
+          <li key={a.id}>
+            <button
+              type="button"
+              onClick={() => onSelect(a)}
+              className="flex w-full items-start gap-2 rounded-lg px-1.5 py-1 text-left hover:bg-surface-2"
+            >
+              <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-sm" style={{ background: a.color }} aria-hidden="true" />
+              <span className="min-w-0">
+                <strong className="block leading-snug">{a.event}</strong>
+                <span className="block text-muted-dim">
+                  {a.expires ? `Until ${formatDateTime(a.expires)}` : alertLevelName(a.level, false)}
+                </span>
+              </span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </Popup>
+  );
+}
 
 export const ReportLayer = memo(function ReportLayer({
   reports,

@@ -2,9 +2,10 @@
 
 import { useFilters } from "@/lib/client-store";
 import { HAIL_MAX, HAIL_STEP, REPORT_DAY_OPTIONS, WIND_MAX, WIND_MIN } from "@/lib/filters";
-import { availableDays, clampDay, OUTLOOK_KINDS, outlookKindTitle } from "@/lib/outlook";
-import type { OutlookKind } from "@/lib/types";
-import { AlertKindChips, CategoryChips } from "./FilterChips";
+import { FORECAST_PRODUCTS } from "@/lib/forecast";
+import { availableDays, clampDay, OUTLOOK_KINDS, outlookKindChip } from "@/lib/outlook";
+import type { ForecastProductId, OutlookKind } from "@/lib/types";
+import { AlertGroupChips, AlertKindChips, CategoryChips } from "./FilterChips";
 import { Sheet } from "./ui/Sheet";
 import { Button, Chip, SectionTitle, Switch } from "./ui/controls";
 
@@ -18,6 +19,14 @@ export function FiltersPanel({ onClose }: { onClose: () => void }) {
 
   const selectKind = (kind: OutlookKind | null) =>
     update({ outlookKind: kind, outlookDay: kind ? clampDay(kind, f.outlookDay) : f.outlookDay });
+
+  // Radar and the forecast animations share the map's imagery slot.
+  const imagery: "off" | "radar" | ForecastProductId = f.forecastProduct ?? (f.showRadar ? "radar" : "off");
+  const selectImagery = (next: typeof imagery) =>
+    update({
+      showRadar: next === "radar",
+      forecastProduct: next === "off" || next === "radar" ? null : next,
+    });
 
   return (
     <Sheet
@@ -34,6 +43,12 @@ export function FiltersPanel({ onClose }: { onClose: () => void }) {
 
       <SectionTitle>Alerts</SectionTitle>
       <AlertKindChips />
+      <div className="mt-2">
+        <AlertGroupChips />
+      </div>
+      <p className="mt-1.5 text-xs text-muted-dim">
+        Tornado / wind / hail above also apply to tornado and severe thunderstorm alerts.
+      </p>
 
       <SectionTitle>Minimum magnitude</SectionTitle>
       <Slider
@@ -77,17 +92,21 @@ export function FiltersPanel({ onClose }: { onClose: () => void }) {
         ))}
       </div>
 
-      <SectionTitle>SPC outlook</SectionTitle>
+      <SectionTitle>Outlook</SectionTitle>
       <div className="flex flex-wrap gap-2">
         <Chip on={f.outlookKind === null} onClick={() => selectKind(null)}>
           Off
         </Chip>
         {OUTLOOK_KINDS.map((k) => (
           <Chip key={k} on={f.outlookKind === k} onClick={() => selectKind(k)}>
-            {outlookKindTitle(k)}
+            {outlookKindChip(k)}
           </Chip>
         ))}
       </div>
+      <p className="mt-1.5 text-xs text-muted-dim">
+        Storm Prediction Center convective risk, or the Weather Prediction Center&apos;s excessive rainfall (flash
+        flood) risk.
+      </p>
       {f.outlookKind && (
         <div className="mt-2 flex flex-wrap gap-2">
           {availableDays(f.outlookKind).map((d) => (
@@ -98,9 +117,36 @@ export function FiltersPanel({ onClose }: { onClose: () => void }) {
         </div>
       )}
 
-      <SectionTitle>Radar</SectionTitle>
-      <Switch label="Animated radar" checked={f.showRadar} onChange={(v) => update({ showRadar: v })} />
-      {f.showRadar && (
+      <SectionTitle>Tropical</SectionTitle>
+      <Switch
+        label="Hurricanes and tropical storms"
+        description="National Hurricane Center tracks, forecast cones, coastal watches and warnings, and areas to watch."
+        checked={f.showTropical}
+        onChange={(v) => update({ showTropical: v })}
+      />
+
+      <SectionTitle>Radar &amp; forecast</SectionTitle>
+      <div className="flex flex-wrap gap-2">
+        <Chip on={imagery === "off"} onClick={() => selectImagery("off")}>
+          Off
+        </Chip>
+        <Chip on={imagery === "radar"} onClick={() => selectImagery("radar")}>
+          Radar (past hour)
+        </Chip>
+      </div>
+      <p className="mb-1.5 mt-3 text-xs text-muted-dim">Forecast animations</p>
+      <div className="flex flex-wrap gap-2">
+        {FORECAST_PRODUCTS.map((p) => (
+          <Chip key={p.id} on={imagery === p.id} onClick={() => selectImagery(p.id)}>
+            {p.name}
+          </Chip>
+        ))}
+      </div>
+      <p className="mt-1.5 text-xs text-muted-dim">
+        Future radar is NOAA&apos;s HRRR model, 18 hours ahead hour by hour. The rest are the National Weather
+        Service&apos;s forecast, a week ahead.
+      </p>
+      {imagery !== "off" && (
         <Slider
           label="Opacity"
           value={f.radarOpacity}

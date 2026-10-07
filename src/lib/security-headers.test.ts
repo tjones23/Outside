@@ -37,6 +37,11 @@ describe("contentSecurityPolicy", () => {
     expect(directive(policy(), "style-src ")).toContain(`'nonce-${NONCE}'`);
   });
 
+  it("lets the development overlay's style elements through, but only in development", () => {
+    expect(directive(policy(true), "style-src ")).toBe("style-src 'self' 'unsafe-inline'");
+    expect(directive(policy(false), "style-src ")).toContain("'nonce-");
+  });
+
   it("allows the notification service worker", () => {
     expect(policy()).toContain("worker-src 'self'");
   });

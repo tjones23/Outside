@@ -84,3 +84,32 @@ describe("planNotifications", () => {
     expect(plan.nextSeen).toEqual([atHome.id]);
   });
 });
+
+describe("planNotifications beyond severe storms", () => {
+  it("notifies for any warning at a saved place — a flood warning as much as a tornado", () => {
+    const flood = makeAlert("Flood Warning", [box(home)], { areaDesc: "Cleveland, OK" });
+    const plan = planNotifications({
+      alerts: [flood],
+      seen: [],
+      settings: { savedLocationAlerts: true, anyWarningAlerts: false },
+      locations,
+      filters: DEFAULT_FILTERS,
+    });
+    expect(plan.toShow.map((n) => n.title)).toEqual(["Flood Warning"]);
+  });
+
+  it("never notifies for advisories, and keeps hidden hazard families out of 'any warning'", () => {
+    const heat = makeAlert("Heat Advisory", [box([40, -90])]);
+    const gale = makeAlert("Gale Warning", [box([40, -90])]);
+    const plan = planNotifications({
+      alerts: [heat, gale],
+      seen: [],
+      settings: { savedLocationAlerts: false, anyWarningAlerts: true },
+      locations,
+      // Marine is off by default.
+      filters: DEFAULT_FILTERS,
+    });
+    expect(plan.toShow).toEqual([]);
+    expect(plan.nextSeen).toEqual([gale.id]);
+  });
+});

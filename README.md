@@ -1,9 +1,11 @@
 # Outside
 
-Severe weather at a glance: live tornado and severe-thunderstorm warnings, the
-last few days of storm reports, SPC convective outlooks and animated radar on
-one dark map — plus your saved places, and a notification when a new warning
-covers one of them.
+Severe weather at a glance: every live NWS warning, watch and advisory (severe
+storms, tropical, flood, coastal, heat, winter, wind, fire, marine…), hurricane
+and tropical-storm tracks and cones, the last few days of storm reports, SPC
+and WPC outlooks, animated radar and forecast animations — HRRR future radar
+and the NWS seven-day forecast — on one map, plus your saved places, and a
+notification when a new warning covers one of them.
 
 Everything comes from free, keyless public feeds. There are no accounts; your
 places and settings stay in your browser.
@@ -28,20 +30,30 @@ Service and Nominatim, both of which ask for one. It defaults to this repo.
 
 | Source | What | How often |
 | --- | --- | --- |
-| [NWS API](https://www.weather.gov/documentation/services-web-api) | Active Tornado / Severe Thunderstorm Warnings and Watches | every minute |
+| [NWS API](https://www.weather.gov/documentation/services-web-api) | Every active alert — warnings, watches, advisories, statements | every minute |
+| [NWS watch/warning map service](https://mapservices.weather.noaa.gov/eventdriven/rest/services/WWA/watch_warn_adv/MapServer) | Outlines of zone- and county-based alerts, joined to the above by CAP id | 2 min |
+| NWS API zones | Outline of any zone the map service lacks (rare) | 7 days |
+| [NHC](https://www.nhc.noaa.gov/) `CurrentStorms.json` + [tropical map service](https://mapservices.weather.noaa.gov/tropical/rest/services/tropical/NHC_tropical_weather/MapServer) | Active storms: forecast points, track, cone, coastal watches/warnings, past track; 7-day outlook | 10 min |
 | [SPC storm reports](https://www.spc.noaa.gov/climo/reports/) | Preliminary tornado, wind and hail reports, 1–5 days | 5 min (today), 30 min (past days) |
 | [SPC outlooks](https://www.spc.noaa.gov/products/outlook/) | Categorical (days 1–3), tornado/wind/hail probabilities (days 1–2) | 15 min |
+| [WPC excessive rainfall](https://www.wpc.ncep.noaa.gov/qpf/excessive_rainfall_outlook_ero.php) | Flash-flood risk, days 1–5 | 15 min |
 | [RainViewer](https://www.rainviewer.com/api.html) | Composite radar, last hour, animated | 2 min |
+| [Iowa Environmental Mesonet](https://mesonet.agron.iastate.edu/) | HRRR simulated radar, hourly to 18 h, as tiles | 10 min |
+| [NDFD WMS](https://digital.weather.gov/) | NWS 7-day gridded forecast: temperature, feels-like, gusts, rain, rain chance, cloud, snow | 10 min |
 | [Esri Dark Gray Canvas](https://www.esri.com/) | Basemap and labels | — |
 | [Nominatim](https://nominatim.org/) | Place search when saving a location | on submit only |
 
 ## Pages
 
-- **Map** — warnings, watches, reports, shaded damage areas, the selected SPC
-  outlook (with conditional-intensity hatching) and radar. A banner tells you
-  when you're inside a warning or near recent reports.
+- **Map** — alerts, hurricanes, reports, shaded damage areas, the selected
+  SPC or WPC outlook (with conditional-intensity hatching), and radar or a
+  forecast animation. Tap anywhere to list every alert there — zone-based
+  alerts stack. A banner tells you when you're inside a warning (or a watch
+  or advisory), or near recent reports; storm pills fly to each active storm.
 - **Reports** — every report, newest first, or within 50 / 100 / 250 miles of you.
-- **Alerts** — warnings and watches, by recency, severity or distance.
+- **Alerts** — every alert, filtered by hazard family (severe, tropical,
+  flood, coastal, heat, winter, wind, fire, marine, other) and tier (warning,
+  watch, advisory, statement), by recency, severity or distance.
 - **Places** — saved places, each with a one-line status; open one for the
   warnings covering it and the reports within 50 miles.
 - **Settings** — notifications for new warnings at your places, or anywhere.
@@ -50,9 +62,12 @@ Service and Nominatim, both of which ask for one. It defaults to this repo.
 
 ```
 src/lib/               pure, framework-free, unit-tested
-  alerts.ts            NWS GeoJSON → StormAlert; sorting
+  alerts.ts            NWS GeoJSON → StormAlert; outline joins; sorting
+  alert-catalog.ts     every NWS event → hazard family, color, priority
+  tropical.ts          NHC storms and outlook → TropicalData
+  forecast.ts          HRRR (IEM) and NDFD (WMS) → animation frames
   reports.ts           SPC CSV → StormReport; convective days (12Z–12Z)
-  outlook.ts           SPC outlook GeoJSON → features + hatch lines
+  outlook.ts           SPC / WPC outlook GeoJSON → features + hatch lines
   radar.ts             RainViewer manifest → tile templates
   damage-areas.ts      reports → clustered, buffered "damage" blobs
   filters.ts           per-browser filters and what passes them
@@ -61,7 +76,7 @@ src/lib/               pure, framework-free, unit-tested
   client-store.ts      filters, places, settings — localStorage, per browser
   sources/upstream.ts  every upstream request (uncached, used by scripts too)
   sources/cached.ts    the same behind `use cache` + named cacheLife profiles
-src/app/api/*          alerts, reports, outlook, radar, geocode — polled by the page
+src/app/api/*          alerts, reports, outlook, radar, tropical, forecast, geocode — polled by the page
 src/components/        UI; the map is hosted in the root layout (see MapHost)
 scripts/               launchers' shared shell, lid-hold registry, source check
 ```
@@ -135,13 +150,22 @@ from the terminal — works exactly as described in WhatsGood's README.
 - **Radar is sharp to zoom 7.** RainViewer's free tier stops there; beyond it
   the zoom-7 tiles are stretched. It also allows 500 tile requests a minute per
   IP, which is why frames load one after another and the loop is the last hour.
-- **Many watches have no polygon.** NWS issues them by county, with no geometry,
-  so they appear in the Alerts list but not on the map or in saved-place checks.
+- **Zone-based alerts are outlined from a second NWS service.** If that
+  service is down they still list, but can't be drawn or checked against your
+  places until it's back. Outlines are simplified to about a kilometer.
+- **Defaults hide the noisiest families.** Marine alerts (small-craft
+  advisories blanket every coast) and statements (Hazardous Weather Outlooks
+  and the like) are off until you turn them on in Filters.
+- **Forecast animations load frame by frame**, nearest-to-now first, to go easy
+  on IEM's and NWS's servers; HRRR steps hourly rather than every 15 minutes
+  for the same reason.
 - **Reports are preliminary.** SPC's feed is unfiltered first reports and can
   contain duplicates of the same event.
 
 ## Attribution
 
-Warnings: National Weather Service. Reports and outlooks: NOAA Storm Prediction
-Center. Radar: RainViewer. Map tiles: Esri, HERE, Garmin, © OpenStreetMap
+Alerts and forecast grids: National Weather Service. Tropical: National
+Hurricane Center. Reports and convective outlooks: NOAA Storm Prediction
+Center. Excessive rainfall: NOAA Weather Prediction Center. Radar: RainViewer.
+Future radar: NOAA HRRR via the Iowa Environmental Mesonet. Map tiles: Esri, HERE, Garmin, © OpenStreetMap
 contributors. Place search: Nominatim, © OpenStreetMap contributors.

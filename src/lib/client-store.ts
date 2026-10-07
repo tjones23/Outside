@@ -4,7 +4,7 @@ import { useCallback, useSyncExternalStore } from "react";
 import { DEFAULT_FILTERS, normalizeFilters, CATEGORY_KEY } from "./filters";
 import { newId } from "./id";
 import { DEFAULT_THEME_PREFERENCE, parseThemePreference, THEME_STORAGE_KEY, type ThemePreference } from "./theme";
-import type { FilterSettings, NotificationSettings, SavedLocation, StormCategory } from "./types";
+import type { AlertGroup, FilterSettings, NotificationSettings, SavedLocation, StormCategory } from "./types";
 
 /**
  * Everything personal lives here, in this browser — never on the server.
@@ -23,7 +23,10 @@ const PREFIX = "outside";
 const FILTERS_KEY = `${PREFIX}:filters:v1`;
 const LOCATIONS_KEY = `${PREFIX}:locations:v1`;
 const NOTIFY_KEY = `${PREFIX}:notify:v1`;
-const SEEN_ALERTS_KEY = `${PREFIX}:seen-alerts:v1`;
+// v2: every NWS warning, not just tornado and severe thunderstorm. A new key
+// re-records the baseline, so the heat, flood and coastal warnings already in
+// effect the first time this version runs don't all notify at once.
+const SEEN_ALERTS_KEY = `${PREFIX}:seen-alerts:v2`;
 
 const DEFAULT_NOTIFY: NotificationSettings = { savedLocationAlerts: false, anyWarningAlerts: false };
 const EMPTY_LOCATIONS: SavedLocation[] = [];
@@ -126,9 +129,21 @@ export function useFilters() {
     persist(FILTERS_KEY, { ...current, [key]: !current[key] });
   }, []);
 
+  const toggleAlertGroup = useCallback((group: AlertGroup) => {
+    const current = readFilters();
+    const on = current.alertGroups.includes(group);
+    persist(
+      FILTERS_KEY,
+      normalizeFilters({
+        ...current,
+        alertGroups: on ? current.alertGroups.filter((g) => g !== group) : [...current.alertGroups, group],
+      }),
+    );
+  }, []);
+
   const reset = useCallback(() => persist(FILTERS_KEY, DEFAULT_FILTERS), []);
 
-  return { filters, update, toggleCategory, reset };
+  return { filters, update, toggleCategory, toggleAlertGroup, reset };
 }
 
 // --- Saved locations --------------------------------------------------------

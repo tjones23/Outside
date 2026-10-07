@@ -30,6 +30,10 @@ export const TILE_HOSTS = [
   "https://server.arcgisonline.com",
   // Radar frames.
   "https://tilecache.rainviewer.com",
+  // HRRR future-radar frames (Iowa Environmental Mesonet).
+  "https://mesonet.agron.iastate.edu",
+  // NWS forecast (NDFD) frames and their color-scale legends.
+  "https://digital.weather.gov",
 ] as const;
 
 /**
@@ -58,7 +62,13 @@ export function contentSecurityPolicy({ nonce, isDev }: HeaderOptions): string {
      * `'self'` plus a nonce still blocks injected inline script.
      */
     `script-src 'self' 'nonce-${nonce}' ${REACT_TIMING_HASH} ${THEME_SCRIPT_HASH}${isDev ? " 'unsafe-eval'" : ""}`,
-    `style-src 'self' 'nonce-${nonce}' 'unsafe-inline'`,
+    /*
+     * In development, Next's dev overlay injects un-nonced `<style>` elements;
+     * with a nonce present they'd be blocked (a few dozen console errors per
+     * load, and an unstyled overlay). Dropping the nonce lets `'unsafe-inline'`
+     * apply. Production keeps the nonce.
+     */
+    isDev ? "style-src 'self' 'unsafe-inline'" : `style-src 'self' 'nonce-${nonce}' 'unsafe-inline'`,
     /*
      * Style *attributes* — the category and alert colors on chips, banners
      * and legend swatches, rendered on the server. A nonce can't apply to an

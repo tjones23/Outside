@@ -1,5 +1,7 @@
+import { ALERT_GROUPS } from "./alert-catalog";
+import { isForecastProduct } from "./forecast";
 import { clampDay, isOutlookKind, outlookProduct } from "./outlook";
-import type { FilterSettings, OutlookProduct, StormAlert, StormCategory, StormReport } from "./types";
+import type { AlertGroup, FilterSettings, OutlookProduct, StormAlert, StormCategory, StormReport } from "./types";
 
 /**
  * What the map and lists show. Ported from `FilterSettings.cs`.
@@ -22,6 +24,13 @@ export const DEFAULT_FILTERS: FilterSettings = {
   outlookDay: 1,
   showRadar: false,
   radarOpacity: 0.65,
+  // Marine alerts blanket every coastline in small-craft advisories; they're
+  // one tap away, but off until asked for.
+  alertGroups: ALERT_GROUPS.filter((g) => g !== "marine"),
+  showAdvisories: true,
+  showStatements: false,
+  showTropical: true,
+  forecastProduct: null,
 };
 
 /** Same options as the mobile filter screen. */
@@ -50,6 +59,13 @@ export function normalizeFilters(input: unknown): FilterSettings {
   const rating = num("minTornadoRating");
   const kind = isOutlookKind(src.outlookKind) ? src.outlookKind : null;
   const day = Math.round(num("outlookDay") ?? DEFAULT_FILTERS.outlookDay);
+  // Kept in the catalog's order, so equal settings serialize equally.
+  const groups = Array.isArray(src.alertGroups)
+    ? ALERT_GROUPS.filter((g) => (src.alertGroups as unknown[]).includes(g))
+    : DEFAULT_FILTERS.alertGroups;
+  const forecast = isForecastProduct(src.forecastProduct) ? src.forecastProduct : null;
+  // Radar and a forecast animation share the map's imagery slot.
+  const showRadar = bool("showRadar") && forecast === null;
 
   return {
     showTornado: bool("showTornado"),
@@ -62,10 +78,19 @@ export function normalizeFilters(input: unknown): FilterSettings {
     minTornadoRating: rating === null ? null : clamp(Math.round(rating), 0, 5),
     reportDays: clamp(Math.round(num("reportDays") ?? DEFAULT_FILTERS.reportDays), 1, 5),
     outlookKind: kind,
-    outlookDay: kind ? clampDay(kind, day) : clamp(day, 1, 3),
-    showRadar: bool("showRadar"),
+    outlookDay: kind ? clampDay(kind, day) : clamp(day, 1, 5),
+    showRadar,
     radarOpacity: clamp(num("radarOpacity") ?? DEFAULT_FILTERS.radarOpacity, 0.1, 1),
+    alertGroups: groups,
+    showAdvisories: bool("showAdvisories"),
+    showStatements: bool("showStatements"),
+    showTropical: bool("showTropical"),
+    forecastProduct: forecast,
   };
+}
+
+export function isGroupEnabled(filters: FilterSettings, group: AlertGroup): boolean {
+  return filters.alertGroups.includes(group);
 }
 
 export function isEnabled(filters: FilterSettings, category: StormCategory): boolean {
@@ -85,11 +110,24 @@ export const CATEGORY_KEY: Record<StormCategory, "showTornado" | "showWind" | "s
   hail: "showHail",
 };
 
-/** Category enabled, and warning/watch kind enabled. */
+/**
+ * Its hazard family is on, its tier (warning / watch / advisory / statement)
+ * is on, and — for the convective products — its tornado / wind / hail
+ * category is on.
+ */
 export function passesAlert(filters: FilterSettings, alert: StormAlert): boolean {
-  return (
-    isEnabled(filters, alert.category) && (alert.isWatch ? filters.showWatches : filters.showWarnings)
-  );
+  if (!isGroupEnabled(filters, alert.group)) return false;
+  if (alert.category && !isEnabled(filters, alert.category)) return false;
+  switch (alert.level) {
+    case "warning":
+      return filters.showWarnings;
+    case "watch":
+      return filters.showWatches;
+    case "advisory":
+      return filters.showAdvisories;
+    case "statement":
+      return filters.showStatements;
+  }
 }
 
 /**

@@ -18,6 +18,11 @@ export function formatClock(ms: number): string {
   return new Date(ms).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
 
+/** "Wed 3 PM" — for loops that span days. */
+export function formatDayClock(ms: number): string {
+  return new Date(ms).toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" });
+}
+
 /** "just now", "4 min ago", "2 hr ago". */
 export function formatAgo(ms: number, now: number): string {
   const s = Math.max(0, Math.round((now - ms) / 1000));

@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { centroid, distanceMiles, miles, polygonContains, ringsContain } from "./geo";
+import {
+  centroid,
+  distanceMiles,
+  miles,
+  polygonContains,
+  ringArea,
+  ringsContain,
+  simplifyLine,
+  simplifyRing,
+  withoutSpecks,
+} from "./geo";
 import type { Ring } from "./types";
 
 const square: Ring = [
@@ -61,5 +71,66 @@ describe("centroid", () => {
     expect(centroid(square)).toEqual([5, 5]);
     expect(centroid(undefined)).toBeNull();
     expect(centroid([])).toBeNull();
+  });
+});
+
+describe("simplifyLine", () => {
+  it("drops points that don't change the shape, and keeps the ends", () => {
+    const line: [number, number][] = [
+      [0, 0],
+      [0, 1],
+      [0.001, 2],
+      [0, 3],
+      [5, 3],
+    ];
+    expect(simplifyLine(line, 0.01)).toEqual([
+      [0, 0],
+      [0, 3],
+      [5, 3],
+    ]);
+  });
+
+  it("keeps everything at zero tolerance", () => {
+    const line: [number, number][] = [
+      [0, 0],
+      [0, 1],
+      [0, 2],
+    ];
+    expect(simplifyLine(line, 0)).toBe(line);
+  });
+});
+
+describe("simplifyRing", () => {
+  it("returns null when too little is left to draw", () => {
+    expect(
+      simplifyRing(
+        [
+          [0, 0],
+          [0, 0.001],
+          [0, 0],
+        ],
+        0.01,
+      ),
+    ).toBeNull();
+  });
+});
+
+describe("withoutSpecks", () => {
+  const square = (half: number): Ring => [
+    [-half, -half],
+    [-half, half],
+    [half, half],
+    [half, -half],
+  ];
+
+  it("measures area in square degrees", () => {
+    expect(ringArea(square(0.5))).toBeCloseTo(1);
+  });
+
+  it("drops tiny rings but always keeps the largest", () => {
+    const big = square(1);
+    const speck = square(0.0001);
+    expect(withoutSpecks([speck, big, speck], 1e-5)).toEqual([big]);
+    expect(withoutSpecks([speck], 1e-5)).toEqual([speck]);
   });
 });

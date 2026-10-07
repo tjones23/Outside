@@ -1,15 +1,34 @@
 import { cacheLife } from "next/cache";
+import { buildNdfdFrames, forecastProduct, pickNdfdTimes } from "../forecast";
 import { convectiveDate } from "../reports";
 import type {
+  ForecastFrames,
+  ForecastProductId,
   GeocodeResult,
   OutlookData,
   OutlookProduct,
   RadarManifest,
   ReportsData,
+  Ring,
   StormAlert,
   StormReport,
+  TropicalData,
 } from "../types";
-import { fetchAlerts, fetchGeocode, fetchOutlook, fetchRadar, fetchReportDay, UpstreamError } from "./upstream";
+import {
+  fetchAlertFeed,
+  fetchGeocode,
+  fetchHrrrFrames,
+  fetchNdfdTimes,
+  fetchOutlook,
+  fetchRadar,
+  fetchReportDay,
+  fetchTropical,
+  fetchWwaOutlines,
+  fetchZoneOutline,
+  joinOutlines,
+  UpstreamError,
+  type AlertFeed,
+} from "./upstream";
 
 /**
  * The upstream feeds behind Next's `use cache`, one entry per distinct
@@ -32,15 +51,100 @@ function failure(error: unknown): { ok: false; error: string } {
   return { ok: false, error: error instanceof UpstreamError ? error.message : String(error) };
 }
 
-export async function getAlerts(): Promise<Fetched<StormAlert[]>> {
+async function getAlertFeed(): Promise<Fetched<AlertFeed>> {
   "use cache";
   try {
-    const value = await fetchAlerts();
+    const value = await fetchAlertFeed();
     cacheLife("alerts");
     return { ok: true, value };
   } catch (error) {
     return failure(error);
   }
+}
+
+async function getWwaOutlines(): Promise<Fetched<Record<string, Ring[]>>> {
+  "use cache";
+  try {
+    const value = await fetchWwaOutlines();
+    cacheLife("outlines");
+    return { ok: true, value };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+/** One zone's outline. Zones are redrawn once in a long while, so this is kept for days. */
+async function getZoneOutline(zoneUrl: string): Promise<Fetched<Ring[]>> {
+  "use cache";
+  try {
+    const value = await fetchZoneOutline(zoneUrl);
+    cacheLife("zones");
+    return { ok: true, value };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+/**
+ * Every active NWS alert, with outlines joined on. Not itself cached: it
+ * stitches together three cached sources with different lifetimes — the
+ * alert list (a minute), the map service's outlines (a few minutes) and
+ * individual zones (days). Only the alert list failing is an error.
+ */
+export async function getAlerts(): Promise<Fetched<StormAlert[]>> {
+  const [feed, outlines] = await Promise.all([getAlertFeed(), getWwaOutlines()]);
+  if (!feed.ok) return feed;
+  if (!outlines.ok) console.error(`[outside] alert outlines failed: ${outlines.error}`);
+  const value = await joinOutlines(feed.value, outlines.ok ? outlines.value : null, async (url) => {
+    const zone = await getZoneOutline(url);
+    return zone.ok ? zone.value : null;
+  });
+  return { ok: true, value };
+}
+
+export async function getTropical(): Promise<Fetched<TropicalData>> {
+  "use cache";
+  try {
+    const value = await fetchTropical();
+    cacheLife("tropical");
+    return { ok: true, value };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+async function getHrrrFrames(): Promise<Fetched<ForecastFrames>> {
+  "use cache";
+  try {
+    const value = await fetchHrrrFrames();
+    cacheLife("forecast");
+    return { ok: true, value };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+async function getNdfdTimes(layer: string): Promise<Fetched<string[]>> {
+  "use cache";
+  try {
+    const value = await fetchNdfdTimes(layer);
+    cacheLife("forecast");
+    return { ok: true, value };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+/**
+ * A forecast product's frames. NDFD's are picked from its valid times here,
+ * outside the cache, because which ones are still ahead depends on `now`.
+ */
+export async function getForecast(id: ForecastProductId, now: number): Promise<Fetched<ForecastFrames>> {
+  const product = forecastProduct(id);
+  if (!product.ndfd) return getHrrrFrames();
+  const times = await getNdfdTimes(product.ndfd.layer);
+  if (!times.ok) return times;
+  return { ok: true, value: buildNdfdFrames(product, pickNdfdTimes(times.value, now)) };
 }
 
 /**

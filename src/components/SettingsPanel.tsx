@@ -96,7 +96,7 @@ export function SettingsPanel() {
       <div className="rounded-2xl border border-line bg-surface px-4 py-2">
         <Switch
           label="Warnings at my saved places"
-          description="When a new tornado or severe thunderstorm warning covers one of your places."
+          description="When a new NWS warning — tornado, flood, hurricane, heat or any other — covers one of your places."
           checked={settings.savedLocationAlerts}
           disabled={!canNotify || permission === "denied"}
           onChange={(v) => void toggle({ savedLocationAlerts: v })}
@@ -104,7 +104,7 @@ export function SettingsPanel() {
         <div className="h-px bg-line-soft" />
         <Switch
           label="Every new warning"
-          description="Any new warning that passes your filters, anywhere in the US."
+          description="Any new warning that passes your filters (hazard types included), anywhere in the US."
           checked={settings.anyWarningAlerts}
           disabled={!canNotify || permission === "denied"}
           onChange={(v) => void toggle({ anyWarningAlerts: v })}

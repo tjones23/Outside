@@ -24,7 +24,7 @@ export function OutlookLegend({ data, theme }: { data: OutlookData; theme: Theme
         aria-expanded={open}
         className="flex w-full items-center gap-2 font-medium text-text"
       >
-        SPC {data.product.title}
+        {data.product.center} {data.product.title}
         <span className="ml-auto text-muted-dim">{open ? "▾" : "▸"}</span>
       </button>
       {open && (

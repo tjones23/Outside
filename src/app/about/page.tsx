@@ -5,9 +5,14 @@ export const metadata: Metadata = { title: "About" };
 
 const SOURCES = [
   {
-    name: "National Weather Service",
+    name: "National Weather Service — alerts",
     href: "https://www.weather.gov/documentation/services-web-api",
-    what: "Active tornado and severe thunderstorm warnings and watches. Checked every minute.",
+    what: "Every active warning, watch, advisory and statement — severe storms, tropical, flood, coastal, heat, winter, wind, fire, marine and more. Checked every minute. Zone-based alerts are outlined from NWS's own watch/warning map service.",
+  },
+  {
+    name: "National Hurricane Center",
+    href: "https://www.nhc.noaa.gov/",
+    what: "Active storms with their forecast track, cone, coastal watches and warnings and past track, plus the 7-day tropical outlook. Checked every 10 minutes.",
   },
   {
     name: "Storm Prediction Center — storm reports",
@@ -20,9 +25,24 @@ const SOURCES = [
     what: "Categorical risk for days 1–3 and tornado, wind and hail probabilities for days 1–2. Hatched areas mark conditional intensity.",
   },
   {
+    name: "Weather Prediction Center — excessive rainfall outlook",
+    href: "https://www.wpc.ncep.noaa.gov/qpf/excessive_rainfall_outlook_ero.php",
+    what: "The risk of rain heavy enough to cause flash flooding, days 1–5.",
+  },
+  {
     name: "RainViewer",
     href: "https://www.rainviewer.com/api.html",
-    what: "Composite radar for the last two hours, animated. The free tier is sharp to zoom 7 and stretched beyond it.",
+    what: "Composite radar for the last hour, animated. The free tier is sharp to zoom 7 and stretched beyond it.",
+  },
+  {
+    name: "NOAA HRRR, via the Iowa Environmental Mesonet",
+    href: "https://mesonet.agron.iastate.edu/",
+    what: "Future radar: the High-Resolution Rapid Refresh model's simulated reflectivity, hour by hour for the next 18 hours, from the latest hourly run.",
+  },
+  {
+    name: "National Digital Forecast Database",
+    href: "https://digital.weather.gov/",
+    what: "The National Weather Service's gridded forecast for the next week: temperature, feels-like, gusts, rain, rain chance, cloud cover and snow.",
   },
   {
     name: "Esri Gray Canvas",
@@ -39,7 +59,7 @@ const SOURCES = [
 export default function AboutPage() {
   return (
     <PageBody>
-      <PageHeader title="About Outside" subtitle="Severe weather at a glance, from free public data." />
+      <PageHeader title="About Outside" subtitle="Severe weather, hazards and forecasts at a glance, from free public data." />
 
       <div className="space-y-8 text-sm leading-relaxed text-muted">
         <section>

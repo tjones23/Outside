@@ -3,7 +3,7 @@
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
 import { selectedOutlook } from "@/lib/filters";
 import { useFilters } from "@/lib/client-store";
-import type { OutlookData, RadarManifest, ReportsData, StormAlert } from "@/lib/types";
+import type { ForecastFrames, OutlookData, RadarManifest, ReportsData, StormAlert, TropicalData } from "@/lib/types";
 import { usePoll, type Feed } from "./usePoll";
 
 /**
@@ -12,7 +12,8 @@ import { usePoll, type Feed } from "./usePoll";
  * Unfiltered on purpose: the server returns the same data to everyone so its
  * cache serves every browser, and each browser applies its own filters (see
  * `useFilteredData`). Which feeds are polled does depend on settings — no
- * outlook requests while none is selected, no radar while radar is off.
+ * outlook requests while none is selected, no radar while radar is off, no
+ * tropical or forecast requests while those are off.
  */
 
 const SECOND = 1000;
@@ -23,6 +24,8 @@ interface StormData {
   reports: Feed<ReportsData>;
   outlook: Feed<OutlookData>;
   radar: Feed<{ manifest: RadarManifest | null }>;
+  tropical: Feed<TropicalData>;
+  forecast: Feed<ForecastFrames>;
   /** Poll every active feed now. */
   refresh: () => void;
 }
@@ -58,9 +61,19 @@ export function StormDataProvider({ children }: { children: ReactNode }) {
     { whenHidden: false, refreshToken },
   );
 
+  const tropical = usePoll<TropicalData>(filters.showTropical ? "/api/tropical" : null, 10 * MINUTE, {
+    whenHidden: false,
+    refreshToken,
+  });
+  const forecast = usePoll<ForecastFrames>(
+    filters.forecastProduct ? `/api/forecast?product=${filters.forecastProduct}` : null,
+    10 * MINUTE,
+    { whenHidden: false, refreshToken },
+  );
+
   const value = useMemo(
-    () => ({ alerts, reports, outlook, radar, refresh }),
-    [alerts, reports, outlook, radar, refresh],
+    () => ({ alerts, reports, outlook, radar, tropical, forecast, refresh }),
+    [alerts, reports, outlook, radar, tropical, forecast, refresh],
   );
   return <StormDataContext.Provider value={value}>{children}</StormDataContext.Provider>;
 }
