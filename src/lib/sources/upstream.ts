@@ -22,6 +22,7 @@ import {
 import { nominatimUrl, parseNominatim } from "../geocode";
 import { buildOutlook } from "../outlook";
 import { parseRadarManifest, RAINVIEWER_MANIFEST_URL } from "../radar";
+import { createRateLimiterState, recordHit } from "../rate-limit";
 import { parseSpcCsv, reportsUrl } from "../reports";
 import {
   layerQueryUrl,
@@ -310,6 +311,27 @@ export class GeocodeBusyError extends Error {
 /** Checked before a search reaches the cache, so "busy" is never cached. */
 export function geocodeQueueFull(): boolean {
   return geocodeQueued >= GEOCODE_MAX_QUEUE;
+}
+
+/**
+ * Per-visitor and site-wide ceilings on place search, on top of the queue
+ * above. The queue only smooths bursts; without this one visitor could send
+ * a search every second all day under this server's shared Nominatim
+ * identity, which Nominatim bans for. The global ceiling is a backstop if
+ * many different addresses are used at once.
+ */
+const GEOCODE_VISITOR_WINDOW_MS = 10 * 60 * 1000;
+const GEOCODE_VISITOR_MAX = 10;
+const GEOCODE_GLOBAL_WINDOW_MS = 60 * 60 * 1000;
+const GEOCODE_GLOBAL_MAX = 300;
+const geocodeVisitorLimiter = createRateLimiterState();
+const geocodeGlobalLimiter = createRateLimiterState();
+
+/** `visitorKey` identifies the caller (their address); checked before the queue and cache. */
+export function geocodeAllowed(visitorKey: string, now = Date.now()): boolean {
+  const global = recordHit(geocodeGlobalLimiter, "*", now, GEOCODE_GLOBAL_WINDOW_MS, GEOCODE_GLOBAL_MAX);
+  const visitor = recordHit(geocodeVisitorLimiter, visitorKey, now, GEOCODE_VISITOR_WINDOW_MS, GEOCODE_VISITOR_MAX);
+  return global && visitor;
 }
 
 export function fetchGeocode(query: string): Promise<GeocodeResult[]> {

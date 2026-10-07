@@ -113,6 +113,7 @@ a command:
 ./run-prod.command start     # serve the last build, to this Mac only
 ./run-prod.command lan       # ...and to this network, plain HTTP   (lan off to undo)
 ./run-prod.command tailnet   # ...and to the tailnet, over HTTPS    (tailnet off to undo)
+./run-prod.command public    # ...and to the internet, via Tailscale Funnel (public off to undo)
 ./run-prod.command stop      # stop serving and withdraw from both
 ./run-prod.command setup     # once: let hosting keep a closed-lid Mac awake
 ```
@@ -122,6 +123,15 @@ a command:
 | This Mac | `http://localhost:3001` |
 | This network | `http://<lan-ip>:3001` |
 | Tailnet | `https://<machine>.<tailnet>.ts.net:8443` |
+| Public | same address as Tailnet, once `public` is on |
+
+**`public` means anyone with the link**, not just your tailnet — Tailscale
+Funnel proxies the same address onto the internet. The `*.ts.net` certificate
+is visible in public certificate-transparency logs, so the address can be
+found without being shared. Place search (`/api/geocode`) is rate-limited per
+visitor and site-wide, since it runs under this server's own identity against
+an upstream that bans abusive IPs; everything else just serves shared cached
+copies of public feeds. `public off` returns to tailnet-only.
 
 **Location and notifications need HTTPS.** Browsers only offer them to a
 secure page. They work on `localhost` and the tailnet address; on the plain-HTTP
@@ -161,6 +171,10 @@ from the terminal — works exactly as described in WhatsGood's README.
   for the same reason.
 - **Reports are preliminary.** SPC's feed is unfiltered first reports and can
   contain duplicates of the same event.
+- **Public hosting shares one Mac's bandwidth.** Each open map tab pulls
+  about 275 KB a minute of alerts plus map imagery, and Tailscale limits
+  Funnel bandwidth — fine for friends and family, not a big audience. The Mac
+  has to stay on and hosting for the public link to work.
 
 ## Attribution
 

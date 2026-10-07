@@ -14,6 +14,8 @@
 #   ./run-prod.command lan off
 #   ./run-prod.command tailnet     # host on the tailnet over HTTPS, port 8443 (+ keep awake)
 #   ./run-prod.command tailnet off
+#   ./run-prod.command public      # ...and to the internet, via Tailscale Funnel (+ keep awake)
+#   ./run-prod.command public off  # back to tailnet-only
 #
 #   ./run-prod.command status
 #   ./run-prod.command logs        # follow the log; any key stops following
@@ -28,6 +30,9 @@
 # This network is plain HTTP, the tailnet is HTTPS. Browsers only offer
 # location and notifications to HTTPS pages, so those two features work on
 # the tailnet address (and on localhost) but not on the LAN address.
+#
+# `public` is the same tailnet address, opened to the internet with Tailscale
+# Funnel: anyone with the link can reach it, not just your tailnet.
 
 set -uo pipefail
 
@@ -286,6 +291,66 @@ tailnet_off() {
   sync_awake
 }
 
+# Funnel is `serve` with public ingress switched on: same proxy, same
+# address, just reachable from the internet rather than only the tailnet.
+public_on() {
+  if ! have_tailscale; then
+    err "Tailscale isn't installed."
+    say "  ${DIM}brew install tailscale, or get the app from tailscale.com${RESET}"
+    return 1
+  fi
+  port_is_production || return 1
+
+  if ts_public; then
+    ok "Already public."
+    print_urls
+    return 0
+  fi
+
+  ts_connect || return 1
+
+  if ! is_running; then
+    launch_server prod || return 1
+  fi
+
+  if [ -z "$(ts_serve_url)" ] && ! "$TS_BIN" serve --bg --https="$TS_HTTPS_PORT" "$PORT" >/dev/null 2>&1; then
+    err "tailscale serve failed — production is running, but not on the tailnet."
+    say "  ${DIM}Run 'tailscale serve --bg --https=$TS_HTTPS_PORT $PORT' yourself to see why.${RESET}"
+    return 1
+  fi
+
+  local funnel_err
+  if ! funnel_err="$("$TS_BIN" funnel --bg --https="$TS_HTTPS_PORT" "$PORT" 2>&1)"; then
+    err "tailscale funnel failed — production is on the tailnet, but not public."
+    [ -n "$funnel_err" ] && say "$funnel_err" | sed 's/^/  /'
+    say "  ${DIM}Funnel may need enabling for this tailnet or node — see https://tailscale.com/kb/1223/funnel${RESET}"
+    return 1
+  fi
+
+  sync_awake
+  warn "Public: anyone with this link can now open it, not just your tailnet."
+  ok "Hosted publicly."
+  print_urls
+}
+
+public_off() {
+  if ! ts_public; then
+    say "Not public."
+    return 0
+  fi
+
+  ts_unfunnel || return 1
+  # ts_unfunnel can take the plain tailnet listener down with it on some
+  # Tailscale versions; put it back so this always ends up tailnet-only,
+  # never fully withdrawn.
+  if [ -z "$(ts_serve_url)" ]; then
+    "$TS_BIN" serve --bg --https="$TS_HTTPS_PORT" "$PORT" >/dev/null 2>&1
+  fi
+  sync_awake
+  ok "No longer public — still on the tailnet."
+  print_urls
+}
+
 # ---------------------------------------------------------------------------
 # Finder double-click: no arguments and a terminal attached, so offer a menu
 # and keep the window open afterwards.
@@ -297,6 +362,10 @@ lan_toggle() {
 
 tailnet_toggle() {
   if [ -n "$(ts_serve_url)" ]; then tailnet_off; else tailnet_on; fi
+}
+
+public_toggle() {
+  if ts_public; then public_off; else public_on; fi
 }
 
 prod_restart() {
@@ -324,7 +393,12 @@ menu() {
     else
       say "  6) Host on the tailnet"
     fi
-    say "  7) Show logs"
+    if ts_public; then
+      say "  7) Stop public access"
+    else
+      say "  7) Make public"
+    fi
+    say "  8) Show logs"
     say "  q) Quit"
 
     read_choice || return 0
@@ -335,16 +409,17 @@ menu() {
       4) run_op prod_rebuild ;;
       5) run_op lan_toggle ;;
       6) run_op tailnet_toggle ;;
-      7) follow_log "$LOG_FILE" ;;
+      7) run_op public_toggle ;;
+      8) follow_log "$LOG_FILE" ;;
       q|Q) say "Bye. Anything still running keeps running."; return 0 ;;
       "") ;;
-      *) warn "Pick 1–7, or q to quit." ;;
+      *) warn "Pick 1–8, or q to quit." ;;
     esac
   done
 }
 
 usage() {
-  say "Try: start | stop | restart | rebuild | lan [off] | tailnet [off] | status | logs | setup"
+  say "Try: start | stop | restart | rebuild | lan [off] | tailnet [off] | public [off] | status | logs | setup"
 }
 
 case "${1:-}" in
@@ -352,7 +427,7 @@ case "${1:-}" in
   stop)    run_op prod_stop ;;
   restart) run_op prod_restart ;;
   rebuild) run_op prod_rebuild ;;
-  lan|tailnet)
+  lan|tailnet|public)
     case "${2:-on}" in
       on)  run_op "${1}_on" ;;
       off) run_op "${1}_off" ;;

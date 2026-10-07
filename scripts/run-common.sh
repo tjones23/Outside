@@ -410,11 +410,40 @@ ts_connect() {
   return 1
 }
 
+# Is this app's port open to the public internet, not just the tailnet?
+# Checked against this app's own host:port, so WhatsGood's funneled port (if
+# any) never counts.
+ts_public() {
+  have_tailscale || return 1
+  local host
+  host="$(ts_hostname)"
+  [ -n "$host" ] || return 1
+  "$TS_BIN" serve status --json 2>/dev/null |
+    grep -q "\"$host:$TS_HTTPS_PORT\"[[:space:]]*:[[:space:]]*true"
+}
+
+# Turn off public ingress for this app's port, leaving the private tailnet
+# listener (if any) alone. `serve`/`funnel off` on some Tailscale versions
+# also drops the plain tailnet listener; callers that want to stay on the
+# tailnet put it back afterward (see run-prod.command's `public_off`).
+ts_unfunnel() {
+  ts_public || return 0
+  "$TS_BIN" funnel --https="$TS_HTTPS_PORT" off >/dev/null 2>&1
+  if ts_public; then
+    err "Couldn't withdraw from the internet — check 'tailscale funnel status'."
+    return 1
+  fi
+  return 0
+}
+
 # Withdraw the app from the tailnet. Only this app's HTTPS listener is turned
-# off. Never `serve reset`: that would also drop WhatsGood's.
+# off. Never `serve reset`: that would also drop WhatsGood's. Funnel is
+# cleared first, so this never leaves the port public with nothing to show
+# for it on the tailnet.
 ts_unserve() {
   [ -n "$(ts_serve_url)" ] || return 0
 
+  ts_unfunnel
   "$TS_BIN" serve --https="$TS_HTTPS_PORT" off >/dev/null 2>&1
 
   if [ -n "$(ts_serve_url)" ]; then
@@ -543,7 +572,13 @@ print_urls() {
 
   local ts_url
   ts_url="$(ts_serve_url)"
-  [ -n "$ts_url" ] && say "  ${BOLD}${BLUE}${ts_url}${RESET}  ${DIM}(tailnet, HTTPS)${RESET}"
+  if [ -n "$ts_url" ]; then
+    if ts_public; then
+      say "  ${BOLD}${BLUE}${ts_url}${RESET}  ${DIM}(public, HTTPS)${RESET}"
+    else
+      say "  ${BOLD}${BLUE}${ts_url}${RESET}  ${DIM}(tailnet, HTTPS)${RESET}"
+    fi
+  fi
 
   awake_for "$(server_pid)" && say "  ${DIM}Sleep is held off while it's hosted.${RESET}"
   say "  ${DIM}logs: $LOG_FILE${RESET}"
@@ -721,7 +756,13 @@ menu_header() {
 
   local ts_url
   ts_url="$(ts_serve_url)"
-  [ -n "$ts_url" ] && printf '    tailnet       %s\n' "$ts_url"
+  if [ -n "$ts_url" ]; then
+    if ts_public; then
+      printf '    public        %s\n' "$ts_url"
+    else
+      printf '    tailnet       %s\n' "$ts_url"
+    fi
+  fi
 
   sleep_summary
   printf '\n'
