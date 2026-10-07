@@ -7,14 +7,17 @@
 # only its own commands and menu on top.
 #
 # Adapted from WhatsGood's launchers, which host from the same Mac. The two
-# apps use different ports (3000 / 3001) and different tailnet HTTPS ports
-# (443 / 8443), and share the closed-lid sleep hold through scripts/lid-hold.sh.
+# apps use different ports (3000 / 3001) on different Tailscale nodes —
+# WhatsGood on the machine's own node, Outside on its own — so neither needs
+# the other's port, and they share the closed-lid sleep hold through
+# scripts/lid-hold.sh.
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APP_ID="outside"
 PORT="${OUTSIDE_PORT:-3001}"
-# tailscale serve offers HTTPS on 443, 8443 and 10000; WhatsGood has 443.
-TS_HTTPS_PORT="${OUTSIDE_TS_PORT:-8443}"
+# Outside's own node serves nothing else, so it gets plain 443 — no port in
+# the URL. Override if that's ever not free on this node.
+TS_HTTPS_PORT="${OUTSIDE_TS_PORT:-443}"
 LOG_FILE="$REPO_DIR/server.log"
 BUILD_LOG_FILE="$REPO_DIR/build.log"
 PID_FILE="$REPO_DIR/server.pid"
@@ -320,17 +323,29 @@ EOF
 # ---------------------------------------------------------------------------
 # Tailscale
 #
+# Outside gets its own Tailscale node — a second, userspace `tailscaled` that
+# only this app's launcher runs, logged in under its own name (TS_NODE_NAME).
+# That's what gives it a clean address with no port
+# (https://outside.<tailnet>.ts.net) instead of sharing the machine's own
+# node and a second HTTPS port. It costs nothing: Tailscale's free plan
+# doesn't limit user-owned devices, and this one is a normal (non-ephemeral)
+# node like any other.
+#
+# Every Tailscale call below goes through the `ts` wrapper, which always
+# names this node's own --socket. Nothing here ever touches the machine's
+# own Tailscale (whatever WhatsGood or anything else uses) — including the
+# bare `tailscale` CLI, which would otherwise silently talk to whichever
+# daemon it finds first.
+#
 # Hosting on the tailnet is `tailscale serve`, proxying HTTPS on
 # $TS_HTTPS_PORT to localhost. HTTPS is what makes location and notifications
 # work: browsers only offer them to a secure page, which the plain-HTTP LAN
 # address is not.
 #
-# The node may serve other apps (WhatsGood on 443), so everything here reads
-# and removes only this app's HTTPS port — never `serve reset`.
-#
-# Nothing here ever runs `tailscale down`. On a server that is administered
-# over the tailnet, leaving it would cut off SSH along with the app — so
-# "stop hosting" withdraws the proxy and leaves the node connected.
+# Nothing here ever runs `ts down`. On a server administered over the
+# tailnet, that would cut off SSH along with the app — so "stop hosting"
+# withdraws the proxy (and, on a full stop, the node's own daemon) rather
+# than logging the node out.
 # ---------------------------------------------------------------------------
 
 TS_BIN="$(command -v tailscale 2>/dev/null || true)"
@@ -338,87 +353,184 @@ if [ -z "$TS_BIN" ] && [ -x /Applications/Tailscale.app/Contents/MacOS/Tailscale
   TS_BIN="/Applications/Tailscale.app/Contents/MacOS/Tailscale"
 fi
 
-have_tailscale() { [ -n "$TS_BIN" ]; }
+# The standalone daemon binary for Outside's own node. Neither the App Store
+# nor the standalone Tailscale.app ships one of these to run by hand — it has
+# to come from `brew install tailscale` (the binary only; never `brew
+# services start` it, which would run it as the *system* daemon).
+TSD_BIN="$(command -v tailscaled 2>/dev/null || true)"
+if [ -z "$TSD_BIN" ]; then
+  for _ts_candidate in /opt/homebrew/opt/tailscale/bin/tailscaled /usr/local/opt/tailscale/bin/tailscaled; do
+    [ -x "$_ts_candidate" ] && TSD_BIN="$_ts_candidate" && break
+  done
+  unset _ts_candidate
+fi
 
-# Running | Stopped | NeedsLogin | NoState, or empty when the daemon can't be
-# reached at all.
+TS_NODE_NAME="${OUTSIDE_TS_HOSTNAME:-outside}"
+TS_STATE_DIR="$STATE_DIR/tailscale"
+TS_SOCKET="$TS_STATE_DIR/tailscaled.sock"
+TS_DAEMON_LOG="$TS_STATE_DIR/tailscaled.log"
+TS_DAEMON_PID_FILE="$TS_STATE_DIR/tailscaled.pid"
+
+have_tailscale()  { [ -n "$TS_BIN" ]; }
+have_tailscaled() { [ -n "$TSD_BIN" ]; }
+
+# Every Tailscale CLI call for Outside's own node goes through here.
+ts() { "$TS_BIN" --socket="$TS_SOCKET" "$@"; }
+
+# Is Outside's own tailscaled answering on its socket?
+ts_daemon_running() {
+  have_tailscaled || return 1
+  ts status --json --peers=false >/dev/null 2>&1
+}
+
+# Start Outside's own tailscaled, in userspace mode so it needs no root and
+# can't fight the machine's own Tailscale over the network interface.
+ts_daemon_start() {
+  ts_daemon_running && return 0
+  have_tailscaled || return 1
+  mkdir -p "$TS_STATE_DIR" || return 1
+  : > "$TS_DAEMON_LOG"
+  detach "$TS_DAEMON_LOG" "$TSD_BIN" --tun=userspace-networking \
+    --statedir="$TS_STATE_DIR" --socket="$TS_SOCKET" --port=0
+  printf '%s' "$DETACHED_PID" > "$TS_DAEMON_PID_FILE"
+
+  local waited=0
+  while [ "$waited" -lt 15 ]; do
+    ts_daemon_running && return 0
+    if ! kill -0 "$DETACHED_PID" 2>/dev/null; then
+      err "Outside's tailscaled didn't start. Last 20 lines of $TS_DAEMON_LOG:"
+      tail -20 "$TS_DAEMON_LOG"
+      rm -f "$TS_DAEMON_PID_FILE"
+      return 1
+    fi
+    sleep 1
+    waited=$((waited + 1))
+  done
+  err "Outside's tailscaled didn't answer on its socket within 15s."
+  return 1
+}
+
+# Stop Outside's own tailscaled. The node stays logged in — it just goes
+# offline until next started, the same as any machine that's turned off.
+ts_daemon_stop() {
+  if ts_daemon_running; then
+    local pid
+    pid="$(cat "$TS_DAEMON_PID_FILE" 2>/dev/null)"
+    if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+      kill_tree "$pid" TERM
+    else
+      pkill -f "tailscaled .*--socket=$TS_SOCKET" 2>/dev/null || true
+    fi
+    local waited=0
+    while [ "$waited" -lt 10 ] && ts_daemon_running; do
+      sleep 1
+      waited=$((waited + 1))
+    done
+  fi
+  rm -f "$TS_DAEMON_PID_FILE" "$TS_SOCKET"
+  return 0
+}
+
+# Running | Stopped | NeedsLogin | NoState, or empty when the daemon isn't
+# running at all (the normal state while Outside isn't hosted anywhere).
 ts_state() {
-  have_tailscale || return 0
-  "$TS_BIN" status --json --peers=false 2>/dev/null |
+  ts_daemon_running || return 0
+  ts status --json --peers=false 2>/dev/null |
     sed -n 's/.*"BackendState"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1
 }
 
 # This node's tailnet name, trailing dot stripped. `--peers=false` is what
 # makes the match unambiguous — every peer carries a DNSName too.
 ts_hostname() {
-  have_tailscale || return 0
-  "$TS_BIN" status --json --peers=false 2>/dev/null |
+  ts_daemon_running || return 0
+  ts status --json --peers=false 2>/dev/null |
     sed -n 's/.*"DNSName"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1 | sed 's/\.$//'
 }
 
 # The URL serve is publishing for this app's port, if any. Port 443 prints
 # as a bare host; any other port as host:port.
 ts_serve_url() {
-  have_tailscale || return 0
+  ts_daemon_running || return 0
   local port_re=""
   [ "$TS_HTTPS_PORT" = 443 ] || port_re=":$TS_HTTPS_PORT"
-  "$TS_BIN" serve status 2>/dev/null |
+  ts serve status 2>/dev/null |
     grep -Eo "^https://[^ :/]+${port_re}( |/|\$)" | head -1 | sed 's|[ /]*$||'
 }
 
-# Bring this node onto the tailnet. Non-zero means it needs a human.
+# Bring Outside's own node onto the tailnet, starting its daemon first if
+# needed. Non-zero means it needs a human.
 ts_connect() {
-  case "$(ts_state)" in
-    Running) return 0 ;;
-    NeedsLogin|NoState)
-      warn "Tailscale is logged out."
-      say "  ${DIM}Run 'tailscale up', sign in, then try again.${RESET}"
-      return 1 ;;
-  esac
+  ts_daemon_start || return 1
 
-  # Stopped, or the daemon didn't answer. `up` gets NO flags on purpose: adding
-  # any flag — even --timeout — makes tailscale demand that every non-default
-  # pref be restated on the command line, and it refuses outright on a node
-  # with a custom hostname. Bare `up` reconnects and keeps existing prefs. So
-  # bound it from the outside instead, so a wedged daemon can't hang the launch.
-  say "${DIM}Connecting to the tailnet…${RESET}"
-  "$TS_BIN" up >/dev/null 2>&1 &
-  local up_pid=$! waited=0
-  while [ "$waited" -lt 30 ] && kill -0 "$up_pid" 2>/dev/null; do
-    sleep 1
-    waited=$((waited + 1))
-  done
-  if kill -0 "$up_pid" 2>/dev/null; then
-    kill_tree "$up_pid" KILL
-    warn "Tailscale didn't come up within 30s."
-    say "  ${DIM}Try 'tailscale up' yourself, then try again.${RESET}"
-    return 1
-  fi
-  wait "$up_pid" 2>/dev/null
+  case "$(ts_state)" in
+    Running) ts_check_node_name; return 0 ;;
+    NeedsLogin|NoState)
+      # First login needs a human to open the URL this prints — there's no
+      # way around that, so only attempt it with a terminal attached, and in
+      # the foreground (no backgrounding, no --timeout) so the URL is seen.
+      if [ ! -t 0 ]; then
+        err "\"$TS_NODE_NAME\" has never logged in to the tailnet."
+        say "  ${DIM}Run '$SELF tailnet' from a terminal, open the URL it prints, then try again.${RESET}"
+        return 1
+      fi
+      say "${DIM}First run — signing \"$TS_NODE_NAME\" in to the tailnet…${RESET}"
+      ts up --hostname="$TS_NODE_NAME" || return 1
+      ;;
+    *)
+      # Stopped, or the daemon just started and hasn't settled. This node's
+      # prefs are ours alone (we always pass --hostname), so bare `up` is
+      # safe — bounded from the outside so a wedged daemon can't hang this.
+      say "${DIM}Connecting \"$TS_NODE_NAME\" to the tailnet…${RESET}"
+      ts up --hostname="$TS_NODE_NAME" >/dev/null 2>&1 &
+      local up_pid=$! waited=0
+      while [ "$waited" -lt 30 ] && kill -0 "$up_pid" 2>/dev/null; do
+        sleep 1
+        waited=$((waited + 1))
+      done
+      if kill -0 "$up_pid" 2>/dev/null; then
+        kill_tree "$up_pid" KILL
+        warn "\"$TS_NODE_NAME\" didn't come up within 30s."
+        return 1
+      fi
+      wait "$up_pid" 2>/dev/null
+      ;;
+  esac
 
   # The daemon flips to Running a beat before the node is actually online, so
   # give it a moment rather than deciding on the first read.
   waited=0
   while [ "$waited" -lt 15 ]; do
-    [ "$(ts_state)" = "Running" ] && return 0
+    if [ "$(ts_state)" = "Running" ]; then
+      ts_check_node_name
+      return 0
+    fi
     sleep 1
     waited=$((waited + 1))
   done
 
-  warn "Couldn't bring Tailscale up automatically."
-  say "  ${DIM}Try 'tailscale up' yourself, then try again.${RESET}"
+  warn "Couldn't bring \"$TS_NODE_NAME\" up."
+  say "  ${DIM}Try '$SELF tailnet' again, or run 'tailscale --socket=$TS_SOCKET up --hostname=$TS_NODE_NAME' yourself.${RESET}"
   return 1
 }
 
+# Tailscale hands out "$TS_NODE_NAME-1" etc. if the name was already taken by
+# another node on this tailnet. Said once per connect, not an error — the
+# app still works, just at a different address than expected.
+ts_check_node_name() {
+  local host="${1:-$(ts_hostname)}"
+  case "$host" in
+    "$TS_NODE_NAME".*) ;;
+    *) [ -n "$host" ] && warn "\"$TS_NODE_NAME\" was already taken on this tailnet — this node is \"${host%%.*}\" instead (https://$host). Remove the old node in the admin console to free the name, if you want it." ;;
+  esac
+}
+
 # Is this app's port open to the public internet, not just the tailnet?
-# Checked against this app's own host:port, so WhatsGood's funneled port (if
-# any) never counts.
 ts_public() {
-  have_tailscale || return 1
+  ts_daemon_running || return 1
   local host
   host="$(ts_hostname)"
   [ -n "$host" ] || return 1
-  "$TS_BIN" serve status --json 2>/dev/null |
+  ts serve status --json 2>/dev/null |
     grep -q "\"$host:$TS_HTTPS_PORT\"[[:space:]]*:[[:space:]]*true"
 }
 
@@ -428,31 +540,40 @@ ts_public() {
 # tailnet put it back afterward (see run-prod.command's `public_off`).
 ts_unfunnel() {
   ts_public || return 0
-  "$TS_BIN" funnel --https="$TS_HTTPS_PORT" off >/dev/null 2>&1
+  ts funnel --https="$TS_HTTPS_PORT" off >/dev/null 2>&1
   if ts_public; then
-    err "Couldn't withdraw from the internet — check 'tailscale funnel status'."
+    err "Couldn't withdraw from the internet — check 'tailscale --socket=$TS_SOCKET funnel status'."
     return 1
   fi
   return 0
 }
 
 # Withdraw the app from the tailnet. Only this app's HTTPS listener is turned
-# off. Never `serve reset`: that would also drop WhatsGood's. Funnel is
-# cleared first, so this never leaves the port public with nothing to show
-# for it on the tailnet.
+# off — this node serves nothing else, but `serve reset` would also forget
+# that, so it's still avoided. Funnel is cleared first, so this never leaves
+# the port public with nothing to show for it on the tailnet.
 ts_unserve() {
   [ -n "$(ts_serve_url)" ] || return 0
 
   ts_unfunnel
-  "$TS_BIN" serve --https="$TS_HTTPS_PORT" off >/dev/null 2>&1
+  ts serve --https="$TS_HTTPS_PORT" off >/dev/null 2>&1
 
   if [ -n "$(ts_serve_url)" ]; then
-    err "Couldn't withdraw from the tailnet — check 'tailscale serve status'."
+    err "Couldn't withdraw from the tailnet — check 'tailscale --socket=$TS_SOCKET serve status'."
     return 1
   fi
   ok "No longer hosted on the tailnet."
-  say "  ${DIM}This Mac is still on the tailnet itself; only the app was withdrawn.${RESET}"
+  say "  ${DIM}\"$TS_NODE_NAME\" is still logged in; only the app's listener was withdrawn.${RESET}"
   return 0
+}
+
+# Full withdrawal for a stop that means it: drop this app's listener and put
+# its node's own daemon to sleep too. Skipped on a stop that's about to be
+# followed by a start (`keep-serve`), so a restart or rebuild never drops
+# the node, and Funnel/serve stay configured across it.
+ts_withdraw() {
+  ts_unserve
+  ts_daemon_stop
 }
 
 # ---------------------------------------------------------------------------
@@ -597,7 +718,7 @@ stop_server() {
     rm -f "$PID_FILE" "$MODE_FILE"
     # Still withdraw: a serve config outlives the server it points at, and an
     # advertised URL with nothing behind it is exactly what this should clear.
-    [ -z "$keep_serve" ] && ts_unserve
+    [ -z "$keep_serve" ] && ts_withdraw
     return 0
   fi
 
@@ -628,7 +749,7 @@ stop_server() {
   fi
   ok "Web server stopped."
 
-  [ -z "$keep_serve" ] && ts_unserve
+  [ -z "$keep_serve" ] && ts_withdraw
   return 0
 }
 
@@ -720,15 +841,17 @@ status() {
     [ -n "$ts_url" ] && warn "The tailnet still advertises $ts_url, with nothing behind it — stop the web server to withdraw it."
   fi
 
-  if have_tailscale; then
+  if have_tailscaled; then
     case "$(ts_state)" in
       Running)
-        [ -n "$(ts_serve_url)" ] || say "  ${DIM}tailnet: connected, app not hosted there${RESET}" ;;
-      Stopped)    say "  ${DIM}tailnet: disconnected${RESET}" ;;
-      NeedsLogin) say "  ${DIM}tailnet: logged out${RESET}" ;;
-      "")         ;;
-      *)          say "  ${DIM}tailnet: $(ts_state)${RESET}" ;;
+        [ -n "$(ts_serve_url)" ] || say "  ${DIM}\"$TS_NODE_NAME\": connected, app not hosted there${RESET}" ;;
+      Stopped)    say "  ${DIM}\"$TS_NODE_NAME\": logged in, daemon running, not connected${RESET}" ;;
+      NeedsLogin) say "  ${DIM}\"$TS_NODE_NAME\": needs login — run '$SELF tailnet' from a terminal${RESET}" ;;
+      "")         say "  ${DIM}\"$TS_NODE_NAME\": daemon not running${RESET}" ;;
+      *)          say "  ${DIM}\"$TS_NODE_NAME\": $(ts_state)${RESET}" ;;
     esac
+  elif have_tailscale; then
+    say "  ${DIM}tailscaled isn't installed — Outside's own node can't run (brew install tailscale).${RESET}"
   fi
 
   sleep_summary
