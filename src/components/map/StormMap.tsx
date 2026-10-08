@@ -45,7 +45,6 @@ const PANES = {
   alerts: 415,
   labels: 420,
   tropical: 423,
-  alertMarkers: 425,
   reports: 430,
   you: 435,
 } as const;
@@ -121,8 +120,8 @@ export default function StormMap({ active }: { active: boolean }) {
 
   // Every alert under a tap, most important first — the polygons stack.
   const pickAt = useCallback(
-    (at: LatLng, alert?: StormAlert) => {
-      const here = alerts.filter((a) => a.id === alert?.id || alertContains(a, at)).sort(byPriority);
+    (at: LatLng) => {
+      const here = alerts.filter((a) => alertContains(a, at)).sort(byPriority);
       if (here.length > 0) setPick((p) => ({ at, alerts: here, n: (p?.n ?? 0) + 1 }));
     },
     [alerts],
@@ -193,7 +192,7 @@ export default function StormMap({ active }: { active: boolean }) {
           {tropicalData && <TropicalAreas data={tropicalData} theme={theme} />}
         </Pane>
         <Pane name="alerts" style={{ zIndex: PANES.alerts }}>
-          <AlertLayer alerts={alerts} onPick={pickAt} markers={false} />
+          <AlertLayer alerts={alerts} onPick={pickAt} />
         </Pane>
         <Pane name="labels" style={{ zIndex: PANES.labels, pointerEvents: "none" }}>
           <TileLayer
@@ -205,9 +204,6 @@ export default function StormMap({ active }: { active: boolean }) {
         </Pane>
         <Pane name="tropical" style={{ zIndex: PANES.tropical }}>
           {tropicalData && <TropicalTracks data={tropicalData} theme={theme} onSelect={setSelectedStorm} />}
-        </Pane>
-        <Pane name="alertMarkers" style={{ zIndex: PANES.alertMarkers }}>
-          <AlertLayer alerts={alerts} onPick={pickAt} markers />
         </Pane>
         <Pane name="reports" style={{ zIndex: PANES.reports }}>
           <ReportLayer reports={reports} onSelect={setSelectedReport} />
