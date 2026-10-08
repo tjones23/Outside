@@ -121,8 +121,7 @@ const LEVEL_STYLE: Record<AlertLevel, { weight: number; fillOpacity: number; das
 };
 
 /**
- * Warning, watch and advisory polygons, or (with `markers`) a dot at the
- * middle of each storm-based warning so small ones can still be tapped.
+ * Warning, watch and advisory polygons.
  *
  * Zone-based alerts stack — a Heat Advisory, a Flood Watch and a Coastal
  * Flood Warning can all cover one town — so a tap doesn't open the topmost
@@ -132,11 +131,9 @@ const LEVEL_STYLE: Record<AlertLevel, { weight: number; fillOpacity: number; das
 export const AlertLayer = memo(function AlertLayer({
   alerts,
   onPick,
-  markers,
 }: {
   alerts: StormAlert[];
-  onPick: (at: LatLng, alert?: StormAlert) => void;
-  markers: boolean;
+  onPick: (at: LatLng) => void;
 }) {
   // Least important first, so the most important draws on top.
   const ordered = useMemo(() => [...alerts].sort((a, b) => b.priority - a.priority), [alerts]);
@@ -145,23 +142,6 @@ export const AlertLayer = memo(function AlertLayer({
     [onPick],
   );
 
-  if (markers) {
-    return (
-      <>
-        {ordered.map((a) =>
-          a.stormBased && a.isWarning && a.centroid ? (
-            <CircleMarker
-              key={`ac-${a.id}`}
-              center={a.centroid}
-              radius={6}
-              pathOptions={{ color: "#fff", weight: 1.5, fillColor: a.color, fillOpacity: 1 }}
-              eventHandlers={{ click: () => onPick(a.centroid!, a) }}
-            />
-          ) : null,
-        )}
-      </>
-    );
-  }
   return (
     <>
       {ordered.flatMap((a) =>
