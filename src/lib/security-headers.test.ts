@@ -28,7 +28,6 @@ describe("contentSecurityPolicy", () => {
   it("permits the map tile hosts and nothing else remote", () => {
     const img = directive(policy(), "img-src")!;
     expect(img).toContain("https://server.arcgisonline.com");
-    expect(img).toContain("https://tilecache.rainviewer.com");
     expect(directive(policy(), "connect-src")).toBe("connect-src 'self'");
   });
 

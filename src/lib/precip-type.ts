@@ -12,9 +12,9 @@ import type { RadarFrame } from "./types";
 export const PRECIP_TYPE_ATTRIBUTION = "NOAA MRMS";
 export const PRECIP_TYPE_ATTRIBUTION_HTML = '<a href="https://www.nssl.noaa.gov/projects/mrms/">NOAA MRMS</a>';
 
-/** One frame every ten minutes, the same cadence as RainViewer's. */
+/** One frame every ten minutes. */
 export const PRECIP_TYPE_STEP_SECONDS = 600;
-/** Last hour, like the RainViewer loop. */
+/** The loop: the last hour. */
 export const PRECIP_TYPE_FRAMES = 7;
 
 /**

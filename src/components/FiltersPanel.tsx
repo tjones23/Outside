@@ -134,16 +134,9 @@ export function FiltersPanel({ onClose }: { onClose: () => void }) {
           Radar (past hour)
         </Chip>
       </div>
-      {imagery === "radar" && (
-        <div className="mt-2">
-          <Switch
-            label="Rain and snow colors"
-            description="NOAA's MRMS radar, which tells rain from snow — continental US only. Off shows RainViewer's worldwide radar."
-            checked={f.radarPrecipType}
-            onChange={(v) => update({ radarPrecipType: v })}
-          />
-        </div>
-      )}
+      <p className="mt-1.5 text-xs text-muted-dim">
+        Radar is NOAA&apos;s MRMS mosaic of every NEXRAD radar, colored rain or snow — continental US only.
+      </p>
       <p className="mb-1.5 mt-3 text-xs text-muted-dim">Forecast animations</p>
       <div className="flex flex-wrap gap-2">
         {FORECAST_PRODUCTS.map((p) => (

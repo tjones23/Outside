@@ -23,7 +23,6 @@ export const DEFAULT_FILTERS: FilterSettings = {
   outlookKind: null,
   outlookDay: 1,
   showRadar: false,
-  radarPrecipType: true,
   radarOpacity: 0.65,
   // Marine alerts blanket every coastline in small-craft advisories; they're
   // one tap away, but off until asked for.
@@ -81,7 +80,6 @@ export function normalizeFilters(input: unknown): FilterSettings {
     outlookKind: kind,
     outlookDay: kind ? clampDay(kind, day) : clamp(day, 1, 5),
     showRadar,
-    radarPrecipType: bool("radarPrecipType"),
     radarOpacity: clamp(num("radarOpacity") ?? DEFAULT_FILTERS.radarOpacity, 0.1, 1),
     alertGroups: groups,
     showAdvisories: bool("showAdvisories"),

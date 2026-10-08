@@ -6,11 +6,14 @@ import { MapContainer, Pane, TileLayer, ZoomControl, useMap } from "react-leafle
 import { alertContains, byPriority } from "@/lib/alerts";
 import { forecastProduct } from "@/lib/forecast";
 import { US_BOUNDS } from "@/lib/geo";
-import { PRECIP_TYPE_ATTRIBUTION_HTML, PRECIP_TYPE_MAX_NATIVE_ZOOM, precipTypeFrame } from "@/lib/precip-type";
-import { RADAR_MAX_NATIVE_ZOOM } from "@/lib/radar";
+import {
+  PRECIP_TYPE_ATTRIBUTION,
+  PRECIP_TYPE_ATTRIBUTION_HTML,
+  PRECIP_TYPE_MAX_NATIVE_ZOOM,
+  precipTypeFrame,
+} from "@/lib/precip-type";
 import type { LatLng, RadarFrame, StormAlert, StormReport, TropicalStorm } from "@/lib/types";
 import { AlertDetail, ReportDetail, TropicalDetail } from "../Details";
-import { CategoryChips } from "../FilterChips";
 import { FiltersPanel } from "../FiltersPanel";
 import { NearbyBanner } from "../NearbyBanner";
 import { useLocation } from "../providers/LocationProvider";
@@ -21,9 +24,8 @@ import { ForecastLegend } from "./ForecastLegend";
 import { AlertLayer, AlertPickPopup, DamageLayer, OutlookLayer, ReportLayer, UserLocationMarker } from "./layers";
 import { OutlookLegend } from "./OutlookLegend";
 import { PrecipTypeLegend } from "./PrecipTypeLegend";
-import { FrameLayer, FrameTimeline, RADAR_LOOP_FRAMES, useFramePlayback } from "./radar";
+import { FrameLayer, FrameTimeline, useFramePlayback } from "./radar";
 import { SmoothWheelZoom } from "./SmoothWheelZoom";
-import { StormChips } from "./StormChips";
 import { TropicalAreas, TropicalTracks } from "./tropical";
 
 /**
@@ -48,7 +50,6 @@ const PANES = {
   you: 435,
 } as const;
 
-const RADAR_ATTRIBUTION_HTML = '<a href="https://www.rainviewer.com/">RainViewer</a>';
 const NO_FRAMES: RadarFrame[] = [];
 
 /**
@@ -87,7 +88,6 @@ export default function StormMap({ active }: { active: boolean }) {
   const {
     outlook,
     radar,
-    precipType,
     tropical,
     forecast,
     alerts: alertFeed,
@@ -105,22 +105,13 @@ export default function StormMap({ active }: { active: boolean }) {
   const [recenter, setRecenter] = useState<{ to: LatLng; zoom: number; n: number } | null>(null);
 
   // Radar and a forecast animation share one imagery slot; filters never turn both on.
-  // Radar is the rain-and-snow frames when they're on and there are any, else RainViewer's.
-  const precipManifest = filters.showRadar && filters.radarPrecipType ? (precipType.data?.manifest ?? null) : null;
+  const manifest = filters.showRadar ? (radar.data?.manifest ?? null) : null;
   // Keyed by the frame times, so a poll that brings nothing new doesn't restart the loop.
-  const precipKey = precipManifest?.frames.map((f) => f.time).join() ?? "";
-  const precipFrames = useMemo(
-    () => (precipKey ? precipKey.split(",").map((t) => precipTypeFrame(Number(t))) : NO_FRAMES),
-    [precipKey],
+  const radarKey = manifest?.frames.map((f) => f.time).join() ?? "";
+  const radarFrames = useMemo(
+    () => (radarKey ? radarKey.split(",").map((t) => precipTypeFrame(Number(t))) : NO_FRAMES),
+    [radarKey],
   );
-  const showPrecipType = precipFrames.length > 0;
-  const rainViewer = filters.showRadar && !showPrecipType ? (radar.data?.manifest ?? null) : null;
-  const rainViewerFrames = useMemo(
-    () => (rainViewer ? [...rainViewer.past.slice(-RADAR_LOOP_FRAMES), ...rainViewer.nowcast] : NO_FRAMES),
-    [rainViewer],
-  );
-  const radarFrames = showPrecipType ? precipFrames : rainViewerFrames;
-  const radarAttribution = showPrecipType ? precipManifest?.attribution : rainViewer?.attribution;
   const forecastData = filters.forecastProduct && forecast.data?.product === filters.forecastProduct ? forecast.data : null;
   const forecastFrames = forecastData?.frames ?? NO_FRAMES;
   const radarPlayback = useFramePlayback(radarFrames, "newest-first");
@@ -146,7 +137,6 @@ export default function StormMap({ active }: { active: boolean }) {
     reportFeed.error && "reports",
     outlook.error && "outlook",
     radar.error && "radar",
-    precipType.error && "rain and snow radar",
     tropical.error && "tropical",
     forecast.error && "forecast",
   ].filter(Boolean);
@@ -176,13 +166,11 @@ export default function StormMap({ active }: { active: boolean }) {
         />
         {radarFrames.length > 0 && (
           <FrameLayer
-            // A fresh layer when the source changes: both use ten-minute frame times.
-            key={showPrecipType ? "mrms" : "rainviewer"}
             playback={radarPlayback}
             opacity={filters.radarOpacity}
             order="newest-first"
-            maxNativeZoom={showPrecipType ? PRECIP_TYPE_MAX_NATIVE_ZOOM : RADAR_MAX_NATIVE_ZOOM}
-            attribution={showPrecipType ? PRECIP_TYPE_ATTRIBUTION_HTML : RADAR_ATTRIBUTION_HTML}
+            maxNativeZoom={PRECIP_TYPE_MAX_NATIVE_ZOOM}
+            attribution={PRECIP_TYPE_ATTRIBUTION_HTML}
           />
         )}
         {forecastData && (
@@ -249,24 +237,12 @@ export default function StormMap({ active }: { active: boolean }) {
         </div>
       )}
 
-      {/* Top: nearby banner and category chips; controls on the right. */}
+      {/* Top: nearby banner; controls on the right. */}
       <div className="pointer-events-none absolute inset-x-3 top-3 z-[500] flex items-start gap-3">
         <div className="pointer-events-auto flex min-w-0 max-w-md flex-1 flex-col gap-2">
           <NearbyBanner
             onSelectAlert={(id) => setSelectedAlert(alerts.find((a) => a.id === id) ?? alertFeed.data?.alerts.find((a) => a.id === id) ?? null)}
           />
-          <div className="rounded-full">
-            <CategoryChips />
-          </div>
-          {tropicalData && tropicalData.storms.length > 0 && (
-            <StormChips
-              storms={tropicalData.storms}
-              onSelect={(storm) => {
-                flyTo(storm.position, 6);
-                setSelectedStorm(storm);
-              }}
-            />
-          )}
           {errors.length > 0 && (
             <p className="w-fit rounded-full border border-danger/40 bg-ink/85 px-3 py-1 text-xs text-text backdrop-blur-md">
               Couldn&apos;t refresh {errors.join(", ")} — retrying.
@@ -297,8 +273,8 @@ export default function StormMap({ active }: { active: boolean }) {
         )}
         {radarFrames.length > 0 && (
           <div className="pointer-events-auto flex w-full max-w-md flex-col gap-2">
-            {showPrecipType && <PrecipTypeLegend />}
-            <FrameTimeline playback={radarPlayback} label="radar" attribution={radarAttribution ?? ""} />
+            <PrecipTypeLegend />
+            <FrameTimeline playback={radarPlayback} label="radar" attribution={PRECIP_TYPE_ATTRIBUTION} />
           </div>
         )}
         {filters.forecastProduct && (

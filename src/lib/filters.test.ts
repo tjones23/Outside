@@ -103,12 +103,6 @@ describe("normalizeFilters", () => {
     expect(normalizeFilters({ alertGroups: [] }).alertGroups).toEqual([]);
   });
 
-  it("colors radar by rain and snow unless turned off", () => {
-    expect(DEFAULT_FILTERS.radarPrecipType).toBe(true);
-    expect(normalizeFilters({ radarPrecipType: false }).radarPrecipType).toBe(false);
-    expect(normalizeFilters({ radarPrecipType: "no" }).radarPrecipType).toBe(true);
-  });
-
   it("never runs radar and a forecast animation at once", () => {
     expect(normalizeFilters({ showRadar: true, forecastProduct: "hrrr-refd" })).toMatchObject({
       showRadar: false,
@@ -120,9 +114,9 @@ describe("normalizeFilters", () => {
     });
   });
 
-  it("reads settings saved before alerts, tropical, forecasts and rain-and-snow radar existed", () => {
+  it("reads settings saved before alerts, tropical and forecasts existed", () => {
     const old = { ...DEFAULT_FILTERS } as Record<string, unknown>;
-    for (const k of ["alertGroups", "showAdvisories", "showStatements", "showTropical", "forecastProduct", "radarPrecipType"]) {
+    for (const k of ["alertGroups", "showAdvisories", "showStatements", "showTropical", "forecastProduct"]) {
       delete old[k];
     }
     expect(normalizeFilters(old)).toEqual(DEFAULT_FILTERS);

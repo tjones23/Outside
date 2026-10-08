@@ -1,7 +1,7 @@
 /**
  * The vocabulary Outside speaks.
  *
- * Every upstream payload (NWS GeoJSON, SPC CSV and GeoJSON, RainViewer JSON,
+ * Every upstream payload (NWS GeoJSON, SPC CSV and GeoJSON, NHC, NOAA MRMS GRIB2,
  * Nominatim JSON) is parsed into these shapes in `src/lib/`, and nothing in
  * `src/app` or `src/components` ever sees a raw one. They are also the wire
  * format of the `/api/*` routes, so everything here must stay plain JSON.
@@ -150,15 +150,7 @@ export interface RadarFrame {
   wms?: { layers: string; params: Record<string, string> };
 }
 
-export interface RadarManifest {
-  past: RadarFrame[];
-  nowcast: RadarFrame[];
-  /** Unix seconds. */
-  generated: number;
-  attribution: string;
-}
-
-/** Rain-and-snow radar frames drawn by this server from NOAA MRMS. */
+/** Radar frames, colored rain vs. snow, drawn by this server from NOAA MRMS. */
 export interface PrecipTypeManifest {
   /** Oldest first, the last hour at most. */
   frames: RadarFrame[];
@@ -193,8 +185,6 @@ export interface FilterSettings {
   outlookKind: OutlookKind | null;
   outlookDay: number;
   showRadar: boolean;
-  /** Radar colored rain vs. snow (NOAA MRMS, continental US) instead of RainViewer's. */
-  radarPrecipType: boolean;
   /** 0.1–1. */
   radarOpacity: number;
   /** Alert families to show; any group not listed is hidden. */

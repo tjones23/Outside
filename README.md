@@ -37,7 +37,7 @@ Service and Nominatim, both of which ask for one. It defaults to this repo.
 | [SPC storm reports](https://www.spc.noaa.gov/climo/reports/) | Preliminary tornado, wind and hail reports, 1–5 days | 5 min (today), 30 min (past days) |
 | [SPC outlooks](https://www.spc.noaa.gov/products/outlook/) | Categorical (days 1–3), tornado/wind/hail probabilities (days 1–2) | 15 min |
 | [WPC excessive rainfall](https://www.wpc.ncep.noaa.gov/qpf/excessive_rainfall_outlook_ero.php) | Flash-flood risk, days 1–5 | 15 min |
-| [RainViewer](https://www.rainviewer.com/api.html) | Composite radar, last hour, animated | 2 min |
+| [NOAA MRMS](https://www.nssl.noaa.gov/projects/mrms/) (`mrms.ncep.noaa.gov`) | Radar, last hour, colored rain or snow; drawn into tiles by this server | 10 min, while radar is on |
 | [Iowa Environmental Mesonet](https://mesonet.agron.iastate.edu/) | HRRR simulated radar, hourly to 18 h, as tiles | 10 min |
 | [NDFD WMS](https://digital.weather.gov/) | NWS 7-day gridded forecast: temperature, feels-like, gusts, rain, rain chance, cloud, snow | 10 min |
 | [Esri Dark Gray Canvas](https://www.esri.com/) | Basemap and labels | — |
@@ -68,7 +68,8 @@ src/lib/               pure, framework-free, unit-tested
   forecast.ts          HRRR (IEM) and NDFD (WMS) → animation frames
   reports.ts           SPC CSV → StormReport; convective days (12Z–12Z)
   outlook.ts           SPC / WPC outlook GeoJSON → features + hatch lines
-  radar.ts             RainViewer manifest → tile templates
+  mrms.ts              MRMS GRIB2 (PNG-packed) → rain/snow radar tiles
+  precip-type.ts       radar frame URLs, zooms and colors, for the browser
   damage-areas.ts      reports → clustered, buffered "damage" blobs
   filters.ts           per-browser filters and what passes them
   nearby.ts            "near me" and saved-place status
@@ -147,9 +148,10 @@ from the terminal — works exactly as described in WhatsGood's README.
 
 ## Known limitations
 
-- **Radar is sharp to zoom 7.** RainViewer's free tier stops there; beyond it
-  the zoom-7 tiles are stretched. It also allows 500 tile requests a minute per
-  IP, which is why frames load one after another and the loop is the last hour.
+- **Radar covers the continental US only**, and is drawn by this server:
+  tiles through zoom 9 (stretched beyond), the last hour at ten-minute steps.
+  MRMS tells rain from snow but has no sleet or freezing-rain class. The first
+  view after a quiet spell waits a few seconds while frames are drawn.
 - **Zone-based alerts are outlined from a second NWS service.** If that
   service is down they still list, but can't be drawn or checked against your
   places until it's back. Outlines are simplified to about a kilometer.
@@ -166,6 +168,6 @@ from the terminal — works exactly as described in WhatsGood's README.
 
 Alerts and forecast grids: National Weather Service. Tropical: National
 Hurricane Center. Reports and convective outlooks: NOAA Storm Prediction
-Center. Excessive rainfall: NOAA Weather Prediction Center. Radar: RainViewer.
+Center. Excessive rainfall: NOAA Weather Prediction Center. Radar: NOAA MRMS.
 Future radar: NOAA HRRR via the Iowa Environmental Mesonet. Map tiles: Esri, HERE, Garmin, © OpenStreetMap
 contributors. Place search: Nominatim, © OpenStreetMap contributors.

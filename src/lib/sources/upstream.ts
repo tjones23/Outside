@@ -22,7 +22,6 @@ import {
 import { nominatimUrl, parseNominatim } from "../geocode";
 import { mrmsFileUrl, type MrmsProduct } from "../mrms";
 import { buildOutlook } from "../outlook";
-import { parseRadarManifest, RAINVIEWER_MANIFEST_URL } from "../radar";
 import { parseSpcCsv, reportsUrl } from "../reports";
 import {
   layerQueryUrl,
@@ -47,7 +46,6 @@ import type {
   GeocodeResult,
   OutlookData,
   OutlookProduct,
-  RadarManifest,
   Ring,
   StormAlert,
   StormReport,
@@ -283,11 +281,6 @@ export async function fetchForecast(id: ForecastProductId, now: number): Promise
   const product = forecastProduct(id);
   if (!product.ndfd) return fetchHrrrFrames();
   return buildNdfdFrames(product, pickNdfdTimes(await fetchNdfdTimes(product.ndfd.layer), now));
-}
-
-export async function fetchRadar(): Promise<RadarManifest | null> {
-  const response = await get(RAINVIEWER_MANIFEST_URL, "application/json");
-  return parseRadarManifest(await response.json());
 }
 
 /**

@@ -7,7 +7,6 @@ import type {
   GeocodeResult,
   OutlookData,
   OutlookProduct,
-  RadarManifest,
   ReportsData,
   Ring,
   StormAlert,
@@ -20,7 +19,6 @@ import {
   fetchHrrrFrames,
   fetchNdfdTimes,
   fetchOutlook,
-  fetchRadar,
   fetchReportDay,
   fetchTropical,
   fetchWwaOutlines,
@@ -196,17 +194,6 @@ export async function getOutlook(product: OutlookProduct): Promise<Fetched<Outlo
   try {
     const value = await fetchOutlook(product);
     cacheLife("outlook");
-    return { ok: true, value };
-  } catch (error) {
-    return failure(error);
-  }
-}
-
-export async function getRadar(): Promise<Fetched<RadarManifest | null>> {
-  "use cache";
-  try {
-    const value = await fetchRadar();
-    cacheLife("radar");
     return { ok: true, value };
   } catch (error) {
     return failure(error);

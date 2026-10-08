@@ -28,8 +28,6 @@ export interface HeaderOptions {
 export const TILE_HOSTS = [
   // Basemaps and their labels (Esri Dark Gray and Light Gray Canvas).
   "https://server.arcgisonline.com",
-  // Radar frames.
-  "https://tilecache.rainviewer.com",
   // HRRR future-radar frames (Iowa Environmental Mesonet).
   "https://mesonet.agron.iastate.edu",
   // NWS forecast (NDFD) frames and their color-scale legends.
