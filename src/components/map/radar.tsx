@@ -213,6 +213,9 @@ export function FrameLayer({
           maxNativeZoom,
           maxZoom: 19,
           noWrap: true,
+          // As the base map: let tiles scale through a zoom, not reload mid-gesture.
+          updateWhenZooming: false,
+          keepBuffer: 4,
           attribution: i === attributionAt ? attribution : undefined,
         };
         const params = wmsParams.get(frame.time);

@@ -127,6 +127,14 @@ input[type="range"] {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }
+
+  /*
+   * Except the map's zoom: it's a quarter-second scale the user starts, and
+   * cut to nothing every zoom becomes a hard flash from one scale to the next.
+   */
+  .leaflet-zoom-anim .leaflet-zoom-animated {
+    transition-duration: 0.25s !important;
+  }
 }
 
 /* --- Leaflet, dressed in the theme ----------------------------------------- */

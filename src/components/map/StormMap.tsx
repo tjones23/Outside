@@ -1,5 +1,6 @@
 "use client";
 
+import { SVG } from "leaflet";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MapContainer, Pane, TileLayer, ZoomControl, useMap } from "react-leaflet";
 import { alertContains, byPriority } from "@/lib/alerts";
@@ -19,6 +20,7 @@ import { ForecastLegend } from "./ForecastLegend";
 import { AlertLayer, AlertPickPopup, DamageLayer, OutlookLayer, ReportLayer, UserLocationMarker } from "./layers";
 import { OutlookLegend } from "./OutlookLegend";
 import { FrameLayer, FrameTimeline, RADAR_LOOP_FRAMES, useFramePlayback } from "./radar";
+import { SmoothWheelZoom } from "./SmoothWheelZoom";
 import { StormChips } from "./StormChips";
 import { TropicalAreas, TropicalTracks } from "./tropical";
 
@@ -58,6 +60,25 @@ const ESRI_CANVAS = { dark: "World_Dark_Gray", light: "World_Light_Gray" } as co
 const ESRI_ATTRIBUTION =
   'Tiles &copy; <a href="https://www.esri.com/">Esri</a> &mdash; Esri, HERE, Garmin, &copy; OpenStreetMap contributors';
 const ESRI_MAX_NATIVE_ZOOM = 16;
+
+/**
+ * The zoom buttons and keyboard move half a level rather than Leaflet's
+ * default of doubling or halving the scale. Wheel and trackpad zoom is
+ * continuous (see `SmoothWheelZoom`), so it replaces Leaflet's own.
+ */
+const ZOOM = { zoomSnap: 0.25, zoomDelta: 0.5, scrollWheelZoom: false } as const;
+
+/**
+ * Tiles stay put mid-zoom (the old ones scale until the gesture ends) and
+ * a wider ring of them is kept after a pan, so less of the map goes blank
+ * and reloads. (The imagery frames in `radar.tsx` do the same.)
+ */
+const STEADY_TILES = { updateWhenZooming: false, keepBuffer: 4 } as const;
+
+// Each pane gets its own SVG renderer, built with Leaflet's defaults. Leaflet
+// draws vectors only 10% past the viewport, so on a zoom out the edges stay
+// empty until the animation ends, then pop in. Draw half a screen past.
+SVG.mergeOptions({ padding: 0.5 });
 
 export default function StormMap({ active }: { active: boolean }) {
   const { alerts, reports, damageAreas, filters } = useFilteredData();
@@ -127,6 +148,7 @@ export default function StormMap({ active }: { active: boolean }) {
         zoomControl={false}
         worldCopyJump
         minZoom={3}
+        {...ZOOM}
         className="h-full w-full"
       >
         <TileLayer
@@ -135,6 +157,7 @@ export default function StormMap({ active }: { active: boolean }) {
           maxNativeZoom={ESRI_MAX_NATIVE_ZOOM}
           maxZoom={19}
           zIndex={1}
+          {...STEADY_TILES}
         />
         {manifest && (
           <FrameLayer
@@ -172,6 +195,7 @@ export default function StormMap({ active }: { active: boolean }) {
             url={`${ESRI}/${canvas}_Reference/MapServer/tile/{z}/{y}/{x}`}
             maxNativeZoom={ESRI_MAX_NATIVE_ZOOM}
             maxZoom={19}
+            {...STEADY_TILES}
           />
         </Pane>
         <Pane name="tropical" style={{ zIndex: PANES.tropical }}>
@@ -197,6 +221,7 @@ export default function StormMap({ active }: { active: boolean }) {
           />
         )}
         <ZoomControl position="bottomright" />
+        <SmoothWheelZoom />
         <FitOnShow active={active} />
         {recenter && <Recenter key={recenter.n} to={recenter.to} zoom={recenter.zoom} />}
       </MapContainer>
