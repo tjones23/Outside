@@ -20,6 +20,7 @@ import { useLocation } from "../providers/LocationProvider";
 import { useStormData } from "../providers/StormDataProvider";
 import { useFilteredData } from "../providers/useFilteredData";
 import { useTheme } from "../providers/useTheme";
+import { BorderLayer } from "./borders";
 import { ForecastLegend } from "./ForecastLegend";
 import { AlertLayer, AlertPickPopup, DamageLayer, OutlookLayer, ReportLayer, UserLocationMarker } from "./layers";
 import { OutlookLegend } from "./OutlookLegend";
@@ -43,6 +44,7 @@ const PANES = {
   damage: 410,
   tropicalAreas: 412,
   alerts: 415,
+  borders: 418,
   labels: 420,
   tropical: 423,
   reports: 430,
@@ -193,6 +195,9 @@ export default function StormMap({ active }: { active: boolean }) {
         </Pane>
         <Pane name="alerts" style={{ zIndex: PANES.alerts }}>
           <AlertLayer alerts={alerts} onPick={pickAt} />
+        </Pane>
+        <Pane name="borders" style={{ zIndex: PANES.borders, pointerEvents: "none" }}>
+          <BorderLayer theme={theme} />
         </Pane>
         <Pane name="labels" style={{ zIndex: PANES.labels, pointerEvents: "none" }}>
           <TileLayer
