@@ -4,19 +4,21 @@ import { setImmediate as nextTurn } from "node:timers/promises";
 import { promisify } from "node:util";
 import { deflate, deflateSync, gunzip, inflate } from "node:zlib";
 import {
-  classifyRows,
+  dbzTable,
+  emptyCellGrid,
   indexedPng,
   kindTable,
+  packRows,
   parseGrib2,
   readPng,
   recentFrameTimes,
   renderTile,
   samplesOf,
   scanlines,
-  stepTable,
   TILE_SIZE,
   tileRange,
   unfilterRows,
+  type CellGrid,
   type GribField,
   type LatLonGrid,
   type Samples,
@@ -39,7 +41,7 @@ import { fetchMrmsFile } from "./upstream";
  * the rain/snow radar open, and a frame is drawn once however many are
  * watching.
  *
- * A frame is about 1.2 MB of downloads and a couple of seconds of CPU on an
+ * A frame is about 1.2 MB of downloads and a few seconds of CPU on an
  * older Mac. The drawing yields to the event loop between bands of rows and
  * batches of tiles, and inflate/deflate run on libuv's thread pool, so pages
  * and API calls keep being answered while it works.
@@ -196,10 +198,10 @@ async function drawFrame(time: number): Promise<boolean> {
   let flag: Awaited<ReturnType<typeof decode>> | null = await decode(flagField);
   let refl: Awaited<ReturnType<typeof decode>> | null = await decode(reflField);
   const kinds = kindTable(flagField, flag.bitDepth);
-  const steps = stepTable(reflField, refl.bitDepth);
-  const classes = new Uint8Array(grid.ni * grid.nj);
+  const dbzs = dbzTable(reflField, refl.bitDepth);
+  const frame = emptyCellGrid(grid);
   for (let y = 0; y < grid.nj; y += ROWS_PER_TURN) {
-    classifyRows(flag.samples, kinds, refl.samples, steps, classes, y, Math.min(grid.nj, y + ROWS_PER_TURN));
+    packRows(flag.samples, kinds, refl.samples, dbzs, frame, y, Math.min(grid.nj, y + ROWS_PER_TURN));
     await nextTurn();
   }
   flag = null;
@@ -207,22 +209,22 @@ async function drawFrame(time: number): Promise<boolean> {
 
   const tmp = join(DATA_DIR, `.tmp-${time}`);
   await rm(tmp, { recursive: true, force: true });
-  await writeTiles(classes, grid, tmp);
+  await writeTiles(frame, tmp);
   const final = join(DATA_DIR, String(time));
   await rm(final, { recursive: true, force: true });
   await rename(tmp, final);
   return true;
 }
 
-async function writeTiles(classes: Uint8Array, grid: LatLonGrid, dir: string): Promise<void> {
+async function writeTiles(frame: CellGrid, dir: string): Promise<void> {
   const tile = new Uint8Array(TILE_SIZE * TILE_SIZE);
   let batch: Promise<void>[] = [];
   for (let z = PRECIP_TYPE_MIN_ZOOM; z <= PRECIP_TYPE_MAX_NATIVE_ZOOM; z++) {
-    const { x0, x1, y0, y1 } = tileRange(grid, z);
+    const { x0, x1, y0, y1 } = tileRange(frame.grid, z);
     for (let x = x0; x <= x1; x++) {
       for (let y = y0; y <= y1; y++) {
         // Clear tiles aren't written; the tile route answers them with an empty one.
-        if (!renderTile(classes, grid, z, x, y, tile)) continue;
+        if (!renderTile(frame, z, x, y, tile)) continue;
         const rows = scanlines(tile, TILE_SIZE, TILE_SIZE);
         const path = join(dir, String(z), String(x));
         batch.push(

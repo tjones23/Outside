@@ -1,13 +1,17 @@
 import { deflateSync, inflateSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
 import {
-  classifyRows,
+  blendCells,
+  dbzTable,
   DBZ_STEPS,
+  emptyCellGrid,
   indexedPng,
   kindTable,
   latToPixel,
   mrmsFileUrl,
+  packRows,
   PALETTE_SIZE,
+  paletteIndex,
   parseGrib2,
   pixelToLat,
   readPng,
@@ -15,7 +19,6 @@ import {
   renderTile,
   samplesOf,
   scanlines,
-  stepTable,
   TILE_SIZE,
   tileRange,
   unfilterRows,
@@ -197,28 +200,66 @@ describe("classification", () => {
     png: grayPng(dbz.map((r) => r.map((d) => Math.round(d * 10) + 999)), 16),
   });
 
-  it("colors by kind and 5 dBZ step, and drops weak or unflagged returns", () => {
+  it("packs dBZ and kind per cell, and drops unflagged or missing returns", () => {
     const flag = decode(flagFile);
     const refl = decode(reflFile);
-    const out = new Uint8Array(GRID.ni * GRID.nj);
-    classifyRows(
+    const frame = emptyCellGrid(GRID);
+    packRows(
       flag.samples,
       kindTable(flag.field, flag.png.bitDepth),
       refl.samples,
-      stepTable(refl.field, refl.png.bitDepth),
-      out,
+      dbzTable(refl.field, refl.png.bitDepth),
+      frame,
       0,
       GRID.nj,
     );
-    const snow = (step: number) => DBZ_STEPS + step;
-    expect([...out]).toEqual([
-      // snow 30 · snow below 5 dBZ · rain 30 · no precipitation
-      snow(6), 0, 6, 0,
-      // convective 72 (top step) · no coverage · cool stratiform 5 · hail 65
-      14, 0, 1, 13,
+    // dBZ + 10, plus 128 for snow.
+    const snow = (dbz: number) => 128 + Math.round(dbz + 10);
+    const rain = (dbz: number) => Math.round(dbz + 10);
+    expect([...frame.cells]).toEqual([
+      // snow 30 · snow 4 (kept, for blending edges) · rain 30 · no precipitation
+      snow(30), snow(4), rain(30), 0,
+      // convective 72 · no coverage · cool stratiform 5 · hail 65
+      rain(72), 0, rain(5), rain(65),
       // tropical mixes 10 and 20 · snow 9.9 · snow but no echo
-      2, 4, snow(1), 0,
+      rain(10), rain(20), snow(9.9), 0,
     ]);
+    expect([...frame.blocks]).toEqual([1]);
+  });
+});
+
+describe("paletteIndex / blendCells", () => {
+  const rain = (dbz: number) => dbz + 10;
+  const snow = (dbz: number) => 128 + dbz + 10;
+
+  it("steps every 5 dBZ from 5, rain then snow", () => {
+    expect(paletteIndex(4.9, false)).toBe(0);
+    expect(paletteIndex(5, false)).toBe(1);
+    expect(paletteIndex(30, true)).toBe(DBZ_STEPS + 6);
+    expect(paletteIndex(90, false)).toBe(DBZ_STEPS);
+    expect(paletteIndex(NaN, false)).toBe(0);
+  });
+
+  it("blends reflectivity between cells", () => {
+    // Halfway between 10 and 40 dBZ is 25: step 5.
+    expect(blendCells(rain(10), rain(40), rain(10), rain(40), 0.5, 0.5)).toBe(5);
+    // At a cell's center, that cell alone.
+    expect(blendCells(rain(40), rain(10), rain(10), rain(10), 0, 0)).toBe(paletteIndex(40, false));
+  });
+
+  it("fades into empty neighbors, so storm edges are contours rather than squares", () => {
+    // A lone 30 dBZ cell against empty ones (−20): its 5 dBZ edge falls halfway.
+    expect(blendCells(rain(30), 0, 0, 0, 0, 0)).toBe(paletteIndex(30, false));
+    expect(blendCells(rain(30), 0, 0, 0, 0.4, 0)).toBe(paletteIndex(10, false));
+    expect(blendCells(rain(30), 0, 0, 0, 0.6, 0)).toBe(0);
+    expect(blendCells(rain(30), 0, 0, 0, 0.5, 0.5)).toBe(0);
+  });
+
+  it("calls rain or snow by whichever has more weight", () => {
+    expect(blendCells(snow(20), rain(20), snow(20), rain(20), 0.3, 0.5)).toBe(paletteIndex(20, true));
+    expect(blendCells(snow(20), rain(20), snow(20), rain(20), 0.7, 0.5)).toBe(paletteIndex(20, false));
+    // Empty neighbors don't vote.
+    expect(blendCells(snow(40), 0, 0, 0, 0.3, 0.3)).toBeGreaterThan(DBZ_STEPS);
   });
 });
 
@@ -233,18 +274,27 @@ describe("tiles", () => {
     expect(tileRange(CONUS, 3)).toEqual({ x0: 1, x1: 2, y0: 2, y1: 3 });
   });
 
-  it("samples the nearest cell, and reports clear tiles", () => {
+  it("draws tiles over precipitation and skips clear ones", () => {
     const grid: LatLonGrid = { ni: 200, nj: 200, la1: 40, lo1: -100, di: 0.1, dj: 0.1 };
-    const classes = new Uint8Array(grid.ni * grid.nj).fill(5);
+    const frame = emptyCellGrid(grid);
+    // Rain at 30 dBZ over the western half only, with its blocks marked as packRows would.
+    for (let j = 0; j < grid.nj; j++) frame.cells.fill(40, j * grid.ni, j * grid.ni + 100);
+    for (let bj = 0; bj * 16 < grid.nj; bj++) frame.blocks.fill(1, bj * frame.blocksWide, bj * frame.blocksWide + 7);
     const out = new Uint8Array(TILE_SIZE * TILE_SIZE);
-    // A zoom-6 tile around (30 N, 92 W), well inside the grid.
-    const tx = Math.floor((((-92 + 180) / 360) * 2 ** 6 * TILE_SIZE) / TILE_SIZE);
-    const ty = Math.floor(latToPixel(30, 6) / TILE_SIZE);
-    expect(renderTile(classes, grid, 6, tx, ty, out)).toBe(true);
-    expect(out.every((v) => v === 5)).toBe(true);
-    // And one over the Atlantic, east of it.
-    expect(renderTile(classes, grid, 6, tx + 5, ty, out)).toBe(false);
-    expect(out.every((v) => v === 0)).toBe(true);
+    const tileAt = (lon: number, lat: number, z: number): [number, number] => [
+      Math.floor(((lon + 180) / 360) * 2 ** z),
+      Math.floor(latToPixel(lat, z) / TILE_SIZE),
+    ];
+
+    // A zoom-8 tile around (30 N, 97 W), well inside the rain.
+    const [tx, ty] = tileAt(-97, 30, 8);
+    expect(renderTile(frame, 8, tx, ty, out)).toBe(true);
+    expect(out.every((v) => v === paletteIndex(30, false))).toBe(true);
+    // One in the dry eastern half, and one off the grid altogether.
+    const [dx, dy] = tileAt(-83, 30, 8);
+    expect(renderTile(frame, 8, dx, dy, out)).toBe(false);
+    const [ox, oy] = tileAt(-60, 30, 8);
+    expect(renderTile(frame, 8, ox, oy, out)).toBe(false);
   });
 
   it("writes a palette PNG: clear, then rain, then snow", () => {

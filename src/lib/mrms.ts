@@ -257,13 +257,17 @@ export function unfilterRows(samples: Samples, y0 = 0, y1 = samples.height): Sam
   return samples;
 }
 
-// --- Classification -----------------------------------------------------------
+// --- Cells -------------------------------------------------------------------
 
-/** Steps per kind in the palette: 5 dBZ wide, 5 to 70+. */
-export const DBZ_STEPS = 14;
-const SNOW_OFFSET = DBZ_STEPS;
-/** Palette index 0 is transparent; 1–14 rain by intensity; 15–28 snow. */
-export const PALETTE_SIZE = 1 + 2 * DBZ_STEPS;
+/**
+ * Each grid cell packed into a byte: 0 for no precipitation, otherwise
+ * dBZ + 10 (1–127) in the low bits and 128 added for snow. Keeping dBZ to the
+ * decibel, rather than its color step, is what lets tiles interpolate between
+ * cells (see `renderTile`), and keeping light returns down to −9 dBZ lets the
+ * 5 dBZ edge fall in the right place between a weak cell and an empty one.
+ */
+const SNOW_BIT = 128;
+const DBZ_OFFSET = 10;
 
 const RAIN_CODES = new Set([1, 6, 7, 10, 91, 96]);
 const SNOW_CODE = 3;
@@ -279,48 +283,91 @@ export function kindTable(flag: GribField, bitDepth: number): Uint8Array {
   return out;
 }
 
-/** Stored reflectivity integer → 0 below 5 dBZ (or missing), else its step 1–14. */
-export function stepTable(reflectivity: GribField, bitDepth: number): Uint8Array {
+/** Stored reflectivity integer → dBZ + 10, 1–127; 0 for anything weaker than −9 dBZ, or missing. */
+export function dbzTable(reflectivity: GribField, bitDepth: number): Uint8Array {
   const values = decodeAll(reflectivity, bitDepth);
   const out = new Uint8Array(values.length);
   values.forEach((dbz, x) => {
-    out[x] = dbz < 5 ? 0 : 1 + Math.min(DBZ_STEPS - 1, Math.floor((dbz - 5) / 5));
+    const q = Math.round(dbz + DBZ_OFFSET);
+    out[x] = q < 1 ? 0 : Math.min(127, q);
   });
   return out;
 }
 
+/** Cells per side of the blocks `CellGrid.blocks` marks, for skipping empty tiles. */
+const BLOCK = 16;
+
+/** The packed cells of one frame, with a coarse map of where anything is falling. */
+export interface CellGrid {
+  grid: LatLonGrid;
+  cells: Uint8Array;
+  /** One byte per BLOCK × BLOCK cells, nonzero if any of them has precipitation. */
+  blocks: Uint8Array;
+  blocksWide: number;
+}
+
+export function emptyCellGrid(grid: LatLonGrid): CellGrid {
+  const blocksWide = Math.ceil(grid.ni / BLOCK);
+  return {
+    grid,
+    cells: new Uint8Array(grid.ni * grid.nj),
+    blocks: new Uint8Array(blocksWide * Math.ceil(grid.nj / BLOCK)),
+    blocksWide,
+  };
+}
+
 /**
- * Palette indices for grid rows `y0` up to `y1`, written into `out` (one byte
- * per cell). Done a band of rows at a time so the caller can yield between
- * bands. Cells with no precipitation flag stay transparent even where the
- * radar sees something — that's how MRMS's own QC drops clutter and birds.
+ * Pack grid rows `y0` up to `y1` into `target`. Done a band of rows at a time
+ * so the caller can yield between bands. Cells with no precipitation flag stay
+ * empty even where the radar sees something — that's how MRMS's own QC drops
+ * clutter and birds.
  */
-export function classifyRows(
+export function packRows(
   flag: Samples,
   kinds: Uint8Array,
   reflectivity: Samples,
-  steps: Uint8Array,
-  out: Uint8Array,
+  dbzs: Uint8Array,
+  target: CellGrid,
   y0: number,
   y1: number,
 ): void {
   const width = flag.width;
   const f = flag.data, r = reflectivity.data;
+  const { cells, blocks, blocksWide } = target;
   const flag16 = flag.bitDepth === 16, refl16 = reflectivity.bitDepth === 16;
   for (let y = y0; y < y1; y++) {
     const fRow = y * (flag.stride + 1) + 1;
     const rRow = y * (reflectivity.stride + 1) + 1;
     const oRow = y * width;
+    const bRow = Math.floor(y / BLOCK) * blocksWide;
     for (let x = 0; x < width; x++) {
       const kind = kinds[flag16 ? (f[fRow + 2 * x] << 8) | f[fRow + 2 * x + 1] : f[fRow + x]];
-      if (kind === 0) {
-        out[oRow + x] = 0;
+      const q = kind === 0 ? 0 : dbzs[refl16 ? (r[rRow + 2 * x] << 8) | r[rRow + 2 * x + 1] : r[rRow + x]];
+      if (q === 0) {
+        cells[oRow + x] = 0;
         continue;
       }
-      const step = steps[refl16 ? (r[rRow + 2 * x] << 8) | r[rRow + 2 * x + 1] : r[rRow + x]];
-      out[oRow + x] = step === 0 ? 0 : kind === 2 ? SNOW_OFFSET + step : step;
+      cells[oRow + x] = kind === 2 ? SNOW_BIT | q : q;
+      blocks[bRow + Math.floor(x / BLOCK)] = 1;
     }
   }
+}
+
+// --- Palette -------------------------------------------------------------------
+
+/** Steps per kind in the palette: 5 dBZ wide, 5 to 70+. */
+export const DBZ_STEPS = 14;
+/** Palette index 0 is transparent; 1–14 rain by intensity; 15–28 snow. */
+export const PALETTE_SIZE = 1 + 2 * DBZ_STEPS;
+
+/** Blended values land a hair off whole decibels (four 30s can sum to 29.999…). */
+const EPSILON = 1e-6;
+
+/** The palette index for a reflectivity and kind; 0 below 5 dBZ. */
+export function paletteIndex(dbz: number, snow: boolean): number {
+  if (!(dbz >= 5 - EPSILON)) return 0;
+  const step = 1 + Math.min(DBZ_STEPS - 1, Math.max(0, Math.floor((dbz - 5) / 5 + EPSILON)));
+  return snow ? DBZ_STEPS + step : step;
 }
 
 // --- Web Mercator tiles -------------------------------------------------------
@@ -350,30 +397,90 @@ export function tileRange(grid: LatLonGrid, z: number): { x0: number; x1: number
   };
 }
 
+/** What an empty neighbor counts as when blending: well below anything drawn. */
+const NO_ECHO_DBZ = -20;
+
+/** A cell's dBZ for blending. */
+const cellDbz = (v: number) => (v === 0 ? NO_ECHO_DBZ : (v & 127) - DBZ_OFFSET);
+
 /**
- * One tile's palette indices into `out` (256 × 256), nearest grid cell to
- * each pixel's center. A lat/lon grid becomes Mercator by remapping rows only,
- * so a column and a row lookup cover the whole tile. False if it's all clear.
+ * The palette index between four packed cells — `a` and `b` along the top,
+ * `c` and `d` below — at fraction `wx` across and `wy` down: reflectivity
+ * blended bilinearly, and rain or snow by whichever has more weight.
  */
-export function renderTile(classes: Uint8Array, grid: LatLonGrid, z: number, tx: number, ty: number, out: Uint8Array): boolean {
-  const cols = new Int32Array(TILE_SIZE);
-  for (let px = 0; px < TILE_SIZE; px++) {
-    const i = Math.round((pixelToLon(tx * TILE_SIZE + px + 0.5, z) - grid.lo1) / grid.di);
-    cols[px] = i >= 0 && i < grid.ni ? i : -1;
+export function blendCells(a: number, b: number, c: number, d: number, wx: number, wy: number): number {
+  const wa = (1 - wx) * (1 - wy), wb = wx * (1 - wy), wc = (1 - wx) * wy, wd = wx * wy;
+  const dbz = wa * cellDbz(a) + wb * cellDbz(b) + wc * cellDbz(c) + wd * cellDbz(d);
+  if (!(dbz >= 5)) return 0;
+  let snow = 0;
+  if (a) snow += a & SNOW_BIT ? wa : -wa;
+  if (b) snow += b & SNOW_BIT ? wb : -wb;
+  if (c) snow += c & SNOW_BIT ? wc : -wc;
+  if (d) snow += d & SNOW_BIT ? wd : -wd;
+  return paletteIndex(dbz, snow > 0);
+}
+
+/** True if any block under the tile has precipitation (with a cell of margin for blending). */
+function tileHasEcho(frame: CellGrid, z: number, tx: number, ty: number): boolean {
+  const { grid, blocks, blocksWide } = frame;
+  const i0 = Math.floor((pixelToLon(tx * TILE_SIZE, z) - grid.lo1) / grid.di) - 1;
+  const i1 = Math.ceil((pixelToLon((tx + 1) * TILE_SIZE, z) - grid.lo1) / grid.di) + 1;
+  const j0 = Math.floor((grid.la1 - pixelToLat(ty * TILE_SIZE, z)) / grid.dj) - 1;
+  const j1 = Math.ceil((grid.la1 - pixelToLat((ty + 1) * TILE_SIZE, z)) / grid.dj) + 1;
+  const bi0 = Math.max(0, Math.floor(i0 / BLOCK)), bi1 = Math.min(blocksWide - 1, Math.floor(i1 / BLOCK));
+  const bj0 = Math.max(0, Math.floor(j0 / BLOCK)), bj1 = Math.min(blocks.length / blocksWide - 1, Math.floor(j1 / BLOCK));
+  for (let bj = bj0; bj <= bj1; bj++) {
+    for (let bi = bi0; bi <= bi1; bi++) if (blocks[bj * blocksWide + bi]) return true;
   }
+  return false;
+}
+
+/**
+ * One tile's palette indices into `out` (256 × 256). False, with `out` left
+ * as it was, if nothing is falling under it.
+ *
+ * Each pixel blends the four grid cells around it (bilinear), so storm edges
+ * and intensity bands come out as smooth contours instead of the ~1 km grid's
+ * squares — which matters once the map is zoomed past the grid's own
+ * resolution. Rain or snow is decided the same way: whichever kind has more
+ * weight among the four. A lat/lon grid becomes Mercator by remapping rows
+ * only, so a column and a row lookup cover the whole tile.
+ */
+export function renderTile(frame: CellGrid, z: number, tx: number, ty: number, out: Uint8Array): boolean {
+  if (!tileHasEcho(frame, z, tx, ty)) return false;
+  const { grid, cells } = frame;
+  const { ni, nj } = grid;
+
+  // Grid coordinates are measured from cell centers.
+  const colA = new Int32Array(TILE_SIZE), colB = new Int32Array(TILE_SIZE), colW = new Float64Array(TILE_SIZE);
+  for (let px = 0; px < TILE_SIZE; px++) {
+    const fi = (pixelToLon(tx * TILE_SIZE + px + 0.5, z) - grid.lo1) / grid.di;
+    const i = Math.floor(fi);
+    colA[px] = i >= 0 && i < ni ? i : -1;
+    colB[px] = i + 1 >= 0 && i + 1 < ni ? i + 1 : -1;
+    colW[px] = fi - i;
+  }
+
   let any = 0;
   for (let py = 0; py < TILE_SIZE; py++) {
-    const j = Math.round((grid.la1 - pixelToLat(ty * TILE_SIZE + py + 0.5, z)) / grid.dj);
-    const row = py * TILE_SIZE;
-    if (j < 0 || j >= grid.nj) {
-      out.fill(0, row, row + TILE_SIZE);
-      continue;
-    }
-    const src = j * grid.ni;
+    const fj = (grid.la1 - pixelToLat(ty * TILE_SIZE + py + 0.5, z)) / grid.dj;
+    const j = Math.floor(fj);
+    const wy = fj - j;
+    const rowA = j >= 0 && j < nj ? j * ni : -1;
+    const rowB = j + 1 >= 0 && j + 1 < nj ? (j + 1) * ni : -1;
+    const o = py * TILE_SIZE;
     for (let px = 0; px < TILE_SIZE; px++) {
-      const i = cols[px];
-      const v = i < 0 ? 0 : classes[src + i];
-      out[row + px] = v;
+      const ca = colA[px], cb = colB[px];
+      const a = rowA >= 0 && ca >= 0 ? cells[rowA + ca] : 0;
+      const b = rowA >= 0 && cb >= 0 ? cells[rowA + cb] : 0;
+      const c = rowB >= 0 && ca >= 0 ? cells[rowB + ca] : 0;
+      const d = rowB >= 0 && cb >= 0 ? cells[rowB + cb] : 0;
+      if ((a | b | c | d) === 0) {
+        out[o + px] = 0;
+        continue;
+      }
+      const v = blendCells(a, b, c, d, colW[px], wy);
+      out[o + px] = v;
       any |= v;
     }
   }

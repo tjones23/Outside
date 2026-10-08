@@ -111,8 +111,8 @@ Known facts about the upstreams, all already handled in the code:
     `maxNativeZoom` is 7. `check:sources` calls the z8 result informational.
 - **Rain-and-snow radar (NOAA MRMS):** this server draws it. While someone has it
   on, `/api/mrms` fetches the last hour from `mrms.ncep.noaa.gov` (about 1.2 MB a
-  frame, every ten minutes) and writes tiles to `.outside/mrms/` (a few MB, pruned
-  as frames age out). Nothing runs while nobody is looking, and there is no extra
+  frame, every ten minutes) and writes tiles through zoom 9 to `.outside/mrms/`
+  (tens of MB, pruned as frames age out). Nothing runs while nobody is looking, and there is no extra
   process or job to start. If NOAA is unreachable, the map falls back to RainViewer.
 - **Basemap:** the map uses Esri Dark Gray Canvas, because CARTO's dark tiles now
   demand an API key.

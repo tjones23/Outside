@@ -18,11 +18,13 @@ export const PRECIP_TYPE_STEP_SECONDS = 600;
 export const PRECIP_TYPE_FRAMES = 7;
 
 /**
- * Tiles are drawn for zooms 3–7. MRMS's ~1 km grid is about zoom 7's pixel
- * size, so deeper zooms stretch zoom-7 tiles (`maxNativeZoom`).
+ * Tiles are drawn for zooms 3–9. MRMS's ~1 km grid is about zoom 7's pixel
+ * size, but tiles blend between cells rather than copying them, so drawing
+ * deeper keeps edges smooth where the map zooms to a place (9); past that,
+ * zoom-9 tiles are stretched (`maxNativeZoom`).
  */
 export const PRECIP_TYPE_MIN_ZOOM = 3;
-export const PRECIP_TYPE_MAX_NATIVE_ZOOM = 7;
+export const PRECIP_TYPE_MAX_NATIVE_ZOOM = 9;
 
 export function precipTypeTileUrl(time: number): string {
   return `/api/mrms/${time}/{z}/{x}/{y}.png`;
