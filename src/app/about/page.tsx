@@ -35,6 +35,11 @@ const SOURCES = [
     what: "Composite radar for the last hour, animated. The free tier is sharp to zoom 7 and stretched beyond it.",
   },
   {
+    name: "NOAA MRMS (Multi-Radar Multi-Sensor)",
+    href: "https://www.nssl.noaa.gov/projects/mrms/",
+    what: "Rain-and-snow radar for the continental US: every NEXRAD radar mosaicked by NOAA, with its precipitation type for each square kilometer. This server draws the last hour into map tiles itself, only while someone is looking.",
+  },
+  {
     name: "NOAA HRRR, via the Iowa Environmental Mesonet",
     href: "https://mesonet.agron.iastate.edu/",
     what: "Future radar: the High-Resolution Rapid Refresh model's simulated reflectivity, hour by hour for the next 18 hours, from the latest hourly run.",

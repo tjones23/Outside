@@ -39,7 +39,7 @@ export function ForecastLegend({ id, data }: { id: ForecastProductId; data: Fore
               height={30}
             />
           ) : (
-            <ReflectivityBar />
+            <ScaleBar stops={REFLECTIVITY_STOPS} />
           )}
           <span className="mt-1 block text-muted-dim">
             {product.source}
@@ -51,17 +51,22 @@ export function ForecastLegend({ id, data }: { id: ForecastProductId; data: Fore
   );
 }
 
-function ReflectivityBar() {
-  const n = REFLECTIVITY_STOPS.length;
-  const gradient = REFLECTIVITY_STOPS.map(([, color], i) => `${color} ${(i / (n - 1)) * 100}%`).join(", ");
+/** A color bar with its dBZ marks every 15, from 5. */
+export function ScaleBar({ stops, ticks = true }: { stops: [dbz: number, color: string][]; ticks?: boolean }) {
+  const n = stops.length;
+  const gradient = stops.map(([, color], i) => `${color} ${(i / (n - 1)) * 100}%`).join(", ");
   return (
     <div>
       <div className="h-2.5 rounded-sm" style={{ background: `linear-gradient(to right, ${gradient})` }} />
-      <div className="mt-0.5 flex justify-between text-[10px] tabular-nums text-muted-dim">
-        {REFLECTIVITY_STOPS.filter(([dbz]) => dbz % 15 === 5).map(([dbz]) => (
-          <span key={dbz}>{dbz}</span>
-        ))}
-      </div>
+      {ticks && (
+        <div className="mt-0.5 flex justify-between text-[10px] tabular-nums text-muted-dim">
+          {stops
+            .filter(([dbz]) => dbz % 15 === 5)
+            .map(([dbz]) => (
+              <span key={dbz}>{dbz}</span>
+            ))}
+        </div>
+      )}
     </div>
   );
 }

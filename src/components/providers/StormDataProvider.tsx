@@ -3,7 +3,15 @@
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
 import { selectedOutlook } from "@/lib/filters";
 import { useFilters } from "@/lib/client-store";
-import type { ForecastFrames, OutlookData, RadarManifest, ReportsData, StormAlert, TropicalData } from "@/lib/types";
+import type {
+  ForecastFrames,
+  OutlookData,
+  PrecipTypeManifest,
+  RadarManifest,
+  ReportsData,
+  StormAlert,
+  TropicalData,
+} from "@/lib/types";
 import { usePoll, type Feed } from "./usePoll";
 
 /**
@@ -24,6 +32,8 @@ interface StormData {
   reports: Feed<ReportsData>;
   outlook: Feed<OutlookData>;
   radar: Feed<{ manifest: RadarManifest | null }>;
+  /** Rain-and-snow radar (NOAA MRMS), while radar and that option are on. */
+  precipType: Feed<{ manifest: PrecipTypeManifest }>;
   tropical: Feed<TropicalData>;
   forecast: Feed<ForecastFrames>;
   /** Poll every active feed now. */
@@ -55,8 +65,23 @@ export function StormDataProvider({ children }: { children: ReactNode }) {
     15 * MINUTE,
     { whenHidden: false, refreshToken },
   );
+  // Rain-and-snow frames are drawn by the server on demand, so while it's
+  // still drawing the last hour, poll every 15 seconds to pick them up. The
+  // interval follows the last answer, carried over from the render it came in.
+  const [precipTypePending, setPrecipTypePending] = useState(false);
+  const precipType = usePoll<{ manifest: PrecipTypeManifest }>(
+    filters.showRadar && filters.radarPrecipType ? "/api/mrms" : null,
+    precipTypePending ? 15 * SECOND : 3 * MINUTE,
+    { whenHidden: false, refreshToken },
+  );
+  const pendingNow = precipType.data?.manifest.pending ?? false;
+  if (pendingNow !== precipTypePending) setPrecipTypePending(pendingNow);
+  // RainViewer is the radar when rain-and-snow is off, and the fallback when
+  // it can't be had: NOAA unreachable, or nothing drawn.
+  const precipFrames = precipType.data?.manifest.frames.length ?? 0;
+  const precipTypeUnavailable = precipType.error !== null || (precipType.data !== null && precipFrames === 0 && !pendingNow);
   const radar = usePoll<{ manifest: RadarManifest | null }>(
-    filters.showRadar ? "/api/radar" : null,
+    filters.showRadar && (!filters.radarPrecipType || precipTypeUnavailable) ? "/api/radar" : null,
     3 * MINUTE,
     { whenHidden: false, refreshToken },
   );
@@ -72,8 +97,8 @@ export function StormDataProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo(
-    () => ({ alerts, reports, outlook, radar, tropical, forecast, refresh }),
-    [alerts, reports, outlook, radar, tropical, forecast, refresh],
+    () => ({ alerts, reports, outlook, radar, precipType, tropical, forecast, refresh }),
+    [alerts, reports, outlook, radar, precipType, tropical, forecast, refresh],
   );
   return <StormDataContext.Provider value={value}>{children}</StormDataContext.Provider>;
 }

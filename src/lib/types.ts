@@ -158,6 +158,15 @@ export interface RadarManifest {
   attribution: string;
 }
 
+/** Rain-and-snow radar frames drawn by this server from NOAA MRMS. */
+export interface PrecipTypeManifest {
+  /** Oldest first, the last hour at most. */
+  frames: RadarFrame[];
+  /** Frames are still being drawn: poll again soon. */
+  pending: boolean;
+  attribution: string;
+}
+
 /** A shaded blob synthesized from nearby same-category reports. */
 export interface DamageArea {
   category: StormCategory;
@@ -184,6 +193,8 @@ export interface FilterSettings {
   outlookKind: OutlookKind | null;
   outlookDay: number;
   showRadar: boolean;
+  /** Radar colored rain vs. snow (NOAA MRMS, continental US) instead of RainViewer's. */
+  radarPrecipType: boolean;
   /** 0.1–1. */
   radarOpacity: number;
   /** Alert families to show; any group not listed is hidden. */

@@ -7,11 +7,13 @@
  *
  *   npm run check:sources
  */
+import { gunzipSync } from "node:zlib";
 import {
   fetchAlertFeed,
   fetchAlerts,
   fetchForecast,
   fetchGeocode,
+  fetchMrmsFile,
   fetchOutlook,
   fetchRadar,
   fetchReportDay,
@@ -22,6 +24,7 @@ import {
 import { outlookProduct } from "../src/lib/outlook";
 import { convectiveDate } from "../src/lib/reports";
 import { RADAR_MAX_NATIVE_ZOOM } from "../src/lib/radar";
+import { parseGrib2, recentFrameTimes, type MrmsProduct } from "../src/lib/mrms";
 
 try {
   process.loadEnvFile(".env.local");
@@ -144,6 +147,20 @@ async function main(): Promise<void> {
       // Past zoom 7 the free tier answers 200 with a "Zoom Level Not
       // Supported" placeholder, which is why the map sets maxNativeZoom.
       return `HTTP ${await tileStatus(frame, RADAR_MAX_NATIVE_ZOOM + 1)} (placeholder expected; informational)`;
+    });
+  }
+
+  for (const product of ["PrecipFlag", "SeamlessHSR"] as MrmsProduct[]) {
+    await check(`NOAA MRMS ${product}`, async () => {
+      // The newest ten-minute frame NCEP has; the latest is often a minute or two away.
+      for (const time of recentFrameTimes(Date.now(), 3)) {
+        const file = await fetchMrmsFile(product, time);
+        if (!file) continue;
+        const { grid } = parseGrib2(gunzipSync(file));
+        const age = Math.round((Date.now() / 1000 - time) / 60);
+        return `${grid.ni}×${grid.nj} grid, ${age} min old, ${Math.round(file.length / 1024)} KB`;
+      }
+      throw new Error("none of the last three frames is published");
     });
   }
 

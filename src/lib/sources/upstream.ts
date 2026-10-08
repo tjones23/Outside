@@ -20,6 +20,7 @@ import {
   pickNdfdTimes,
 } from "../forecast";
 import { nominatimUrl, parseNominatim } from "../geocode";
+import { mrmsFileUrl, type MrmsProduct } from "../mrms";
 import { buildOutlook } from "../outlook";
 import { parseRadarManifest, RAINVIEWER_MANIFEST_URL } from "../radar";
 import { parseSpcCsv, reportsUrl } from "../reports";
@@ -287,6 +288,21 @@ export async function fetchForecast(id: ForecastProductId, now: number): Promise
 export async function fetchRadar(): Promise<RadarManifest | null> {
   const response = await get(RAINVIEWER_MANIFEST_URL, "application/json");
   return parseRadarManifest(await response.json());
+}
+
+/**
+ * One gzipped MRMS GRIB2 file, or null if NCEP doesn't have it — not
+ * published yet (they land a minute or two after their time) or already
+ * rolled off (NCEP keeps about a day).
+ */
+export async function fetchMrmsFile(product: MrmsProduct, time: number): Promise<Uint8Array | null> {
+  try {
+    const response = await get(mrmsFileUrl(product, time), "application/octet-stream, */*", 30_000);
+    return new Uint8Array(await response.arrayBuffer());
+  } catch (error) {
+    if (error instanceof UpstreamError && error.status === 404) return null;
+    throw error;
+  }
 }
 
 /**
