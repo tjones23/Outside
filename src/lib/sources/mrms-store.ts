@@ -27,6 +27,7 @@ import {
   PRECIP_TYPE_FRAMES,
   PRECIP_TYPE_MAX_NATIVE_ZOOM,
   PRECIP_TYPE_MIN_ZOOM,
+  PRECIP_TYPE_RENDER_VERSION,
   PRECIP_TYPE_STEP_SECONDS,
 } from "../precip-type";
 import { fetchMrmsFile } from "./upstream";
@@ -47,7 +48,9 @@ import { fetchMrmsFile } from "./upstream";
  * and API calls keep being answered while it works.
  */
 
-const DATA_DIR = join(process.cwd(), ".outside", "mrms");
+const DATA_ROOT = join(process.cwd(), ".outside", "mrms");
+/** Frames drawn by this version of the renderer; anything else under DATA_ROOT is stale. */
+const DATA_DIR = join(DATA_ROOT, `v${PRECIP_TYPE_RENDER_VERSION}`);
 /** How often a refresh may go back to NCEP; polls in between just read the disk. */
 const REFRESH_MS = 60_000;
 /** Times checked per refresh: the loop, plus slack for the newest not being published yet. */
@@ -139,6 +142,11 @@ function notify(): void {
 
 async function refresh(nowMs: number): Promise<void> {
   await mkdir(DATA_DIR, { recursive: true });
+  // Frames drawn by an older renderer would be reused as they are — missing
+  // zooms it didn't draw, say — so they go before anything else.
+  for (const name of await readdir(DATA_ROOT)) {
+    if (join(DATA_ROOT, name) !== DATA_DIR) await rm(join(DATA_ROOT, name), { recursive: true, force: true });
+  }
   const have = new Set(await framesOnDisk());
   const keep: number[] = [];
   const errors: string[] = [];

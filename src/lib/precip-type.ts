@@ -26,8 +26,16 @@ export const PRECIP_TYPE_FRAMES = 7;
 export const PRECIP_TYPE_MIN_ZOOM = 3;
 export const PRECIP_TYPE_MAX_NATIVE_ZOOM = 9;
 
+/**
+ * How frames are drawn. Bump it whenever that changes (zooms, colors,
+ * blending): the server then redraws instead of reusing frames drawn the old
+ * way, and the version in each tile URL keeps browsers from showing tiles
+ * they cached from them.
+ */
+export const PRECIP_TYPE_RENDER_VERSION = 2;
+
 export function precipTypeTileUrl(time: number): string {
-  return `/api/mrms/${time}/{z}/{x}/{y}.png`;
+  return `/api/mrms/${time}/{z}/{x}/{y}.png?v=${PRECIP_TYPE_RENDER_VERSION}`;
 }
 
 export function precipTypeFrame(time: number): RadarFrame {
