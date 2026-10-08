@@ -7,7 +7,6 @@ import { REPORT_RADIUS_OPTIONS, reportsWithin } from "@/lib/nearby";
 import { dayLabel } from "@/lib/reports";
 import type { StormReport } from "@/lib/types";
 import { ReportDetail } from "./Details";
-import { CategoryChips } from "./FilterChips";
 import { FiltersPanel } from "./FiltersPanel";
 import { PageHeader } from "./PageHeader";
 import { useLocation } from "./providers/LocationProvider";
@@ -67,8 +66,6 @@ export function ReportsList() {
       />
 
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        <CategoryChips />
-        <span className="mx-1 h-5 w-px bg-line" aria-hidden="true" />
         <Chip
           on={radius !== null}
           onClick={() => void cycleRadius()}

@@ -22,8 +22,8 @@ import { MapPopup, PopupButton } from "./layers";
  * - `TropicalAreas`, below the alerts: each storm's cone and the outlook's
  *   development areas — big, faint shapes that shouldn't cover warnings.
  * - `TropicalTracks`, above the labels: past track, forecast track, coastal
- *   watches and warnings, and the forecast points, NHC-style letters in
- *   colored circles.
+ *   watches and warnings, the forecast points (NHC-style letters in colored
+ *   circles), and a name tag beside each storm that opens its details.
  */
 
 function mph(kt: number | null): string {
@@ -46,6 +46,23 @@ function stageIcon(stage: TropicalStage, now: boolean) {
     icons.set(key, icon);
   }
   return icon;
+}
+
+const escapeHtml = (text: string) =>
+  text.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
+
+/** The storm's name tag: a zero-size anchor at the storm, the tag hanging off to the right of its circle. */
+function labelIcon(storm: TropicalStorm) {
+  const wind = storm.windMph !== null ? `<span class="tropical-label-wind">${storm.windMph} mph</span>` : "";
+  return divIcon({
+    className: "",
+    iconSize: [0, 0],
+    iconAnchor: [0, 0],
+    html:
+      `<div class="tropical-label" title="${escapeHtml(storm.title)}">` +
+      `<span class="tropical-label-dot" style="background:${stageColor(currentStage(storm))}"></span>` +
+      `${escapeHtml(storm.name)}${wind}</div>`,
+  });
 }
 
 const disturbanceIcons = new Map<string, ReturnType<typeof divIcon>>();
@@ -165,6 +182,7 @@ function StormTrack({
           ],
     [storm],
   );
+  const label = useMemo(() => labelIcon(storm), [storm]);
 
   return (
     <>
@@ -196,6 +214,13 @@ function StormTrack({
           pathOptions={{ color: trackColor, weight: 2, opacity: 0.85, dashArray: "6 6" }}
         />
       )}
+      <Marker
+        position={points[0].coord}
+        icon={label}
+        zIndexOffset={600}
+        title={`${storm.title}: details`}
+        eventHandlers={{ click: () => onSelect(storm) }}
+      />
       {points.map((p, i) => (
         <Marker key={`tf-${i}`} position={p.coord} icon={stageIcon(p.stage, i === 0)} zIndexOffset={i === 0 ? 500 : 0}>
           <MapPopup>

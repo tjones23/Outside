@@ -226,6 +226,50 @@ input[type="range"] {
   border-width: 2.5px;
 }
 
+/*
+ * A storm's name tag, beside its current-position circle (the icon is a
+ * zero-size anchor at the storm; the tag hangs off to the right of the
+ * circle). Tapping it opens the storm's details.
+ */
+.tropical-label {
+  position: absolute;
+  top: 0;
+  left: 17px;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+  padding: 2px 7px 2px 5px;
+  border: 1px solid var(--line);
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--ink) 88%, transparent);
+  color: var(--text);
+  font: 600 11px/1.3 system-ui, sans-serif;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.35);
+  cursor: pointer;
+}
+
+.tropical-label:hover {
+  border-color: var(--muted);
+}
+
+.tropical-label-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+}
+
+.tropical-label-wind {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.leaflet-marker-icon:focus-visible .tropical-label {
+  outline: 2px solid var(--muted);
+  outline-offset: 1px;
+}
+
 /* A disturbance NHC is watching: a bold X in its outlook color. */
 .tropical-x {
   display: flex;

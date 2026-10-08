@@ -11,7 +11,7 @@ export function SiteFooter() {
       <div className="mx-auto max-w-5xl space-y-2 px-4 py-8 pb-tabbar text-xs leading-relaxed text-muted-dim sm:px-6 sm:pb-8">
         <p>
           Warnings from the National Weather Service. Storm reports and outlooks from NOAA&apos;s Storm
-          Prediction Center. Radar by RainViewer. Map tiles © Esri, HERE, Garmin and OpenStreetMap contributors. Place search
+          Prediction Center. Radar from NOAA MRMS. Map tiles © Esri, HERE, Garmin and OpenStreetMap contributors. Place search
           by OpenStreetMap Nominatim.
         </p>
         <p>

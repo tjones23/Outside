@@ -34,8 +34,6 @@ const nextConfig: NextConfig = {
     reportsPast: { stale: MINUTE, revalidate: 30 * MINUTE, expire: 6 * HOUR },
     // Outlooks are reissued a handful of times a day.
     outlook: { stale: MINUTE, revalidate: 15 * MINUTE, expire: 2 * HOUR },
-    // RainViewer publishes a new frame every ten minutes.
-    radar: { stale: 30, revalidate: 2 * MINUTE, expire: 10 * MINUTE },
     // A failed upstream request, remembered briefly so an outage costs one
     // upstream request per feed every half minute, not one per poll.
     failure: { stale: 30, revalidate: 30, expire: MINUTE },

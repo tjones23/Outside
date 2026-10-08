@@ -3,7 +3,14 @@
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
 import { selectedOutlook } from "@/lib/filters";
 import { useFilters } from "@/lib/client-store";
-import type { ForecastFrames, OutlookData, RadarManifest, ReportsData, StormAlert, TropicalData } from "@/lib/types";
+import type {
+  ForecastFrames,
+  OutlookData,
+  PrecipTypeManifest,
+  ReportsData,
+  StormAlert,
+  TropicalData,
+} from "@/lib/types";
 import { usePoll, type Feed } from "./usePoll";
 
 /**
@@ -23,7 +30,8 @@ interface StormData {
   alerts: Feed<{ alerts: StormAlert[] }>;
   reports: Feed<ReportsData>;
   outlook: Feed<OutlookData>;
-  radar: Feed<{ manifest: RadarManifest | null }>;
+  /** Radar (NOAA MRMS, colored rain vs. snow), while radar is on. */
+  radar: Feed<{ manifest: PrecipTypeManifest }>;
   tropical: Feed<TropicalData>;
   forecast: Feed<ForecastFrames>;
   /** Poll every active feed now. */
@@ -55,11 +63,17 @@ export function StormDataProvider({ children }: { children: ReactNode }) {
     15 * MINUTE,
     { whenHidden: false, refreshToken },
   );
-  const radar = usePoll<{ manifest: RadarManifest | null }>(
-    filters.showRadar ? "/api/radar" : null,
-    3 * MINUTE,
+  // Radar frames are drawn by the server on demand, so while it's still
+  // drawing the last hour, poll every 15 seconds to pick them up. The
+  // interval follows the last answer, carried over from the render it came in.
+  const [radarPending, setRadarPending] = useState(false);
+  const radar = usePoll<{ manifest: PrecipTypeManifest }>(
+    filters.showRadar ? "/api/mrms" : null,
+    radarPending ? 15 * SECOND : 3 * MINUTE,
     { whenHidden: false, refreshToken },
   );
+  const pendingNow = radar.data?.manifest.pending ?? false;
+  if (pendingNow !== radarPending) setRadarPending(pendingNow);
 
   const tropical = usePoll<TropicalData>(filters.showTropical ? "/api/tropical" : null, 10 * MINUTE, {
     whenHidden: false,

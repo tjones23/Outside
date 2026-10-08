@@ -36,7 +36,7 @@ Decisions already made with the user. Don't reopen them:
 ## What Outside is (60-second version)
 
 - **What it shows:** live NWS tornado and severe-thunderstorm warnings and watches,
-  SPC storm reports, SPC outlooks (with CIG hatching) and RainViewer radar, on a
+  SPC storm reports, SPC outlooks (with CIG hatching) and NOAA MRMS radar, on a
   Leaflet map. It also has Reports, Alerts, Places and Settings pages.
 - **Data flow:** every upstream is keyless. Server-side fetches sit behind `use cache`
   (`src/lib/sources/`), and the browser polls `/api/*`.
@@ -104,11 +104,11 @@ curl -s localhost:3001/api/alerts | head -c 200
 
 Known facts about the upstreams, all already handled in the code:
 
-- **RainViewer radar:**
-  - It rate-limits tiles to 500 per minute per IP. That's why frames load one after
-    another and the loop is only the last hour.
-  - Past zoom 7 it returns a "Zoom Level Not Supported" placeholder, which is why
-    `maxNativeZoom` is 7. `check:sources` calls the z8 result informational.
+- **Radar (NOAA MRMS):** this server draws it. While someone has radar on,
+  `/api/mrms` fetches the last hour from `mrms.ncep.noaa.gov` (about 1.2 MB a
+  frame, every ten minutes) and writes tiles through zoom 9 to `.outside/mrms/`
+  (tens of MB, pruned as frames age out). Nothing runs while nobody is looking,
+  and there is no extra process or job to start. It covers the continental US only.
 - **Basemap:** the map uses Esri Dark Gray Canvas, because CARTO's dark tiles now
   demand an API key.
 - **Per-request rendering:** pages are rendered per request (`RenderPerRequest` in

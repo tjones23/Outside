@@ -30,9 +30,9 @@ const SOURCES = [
     what: "The risk of rain heavy enough to cause flash flooding, days 1–5.",
   },
   {
-    name: "RainViewer",
-    href: "https://www.rainviewer.com/api.html",
-    what: "Composite radar for the last hour, animated. The free tier is sharp to zoom 7 and stretched beyond it.",
+    name: "NOAA MRMS (Multi-Radar Multi-Sensor)",
+    href: "https://www.nssl.noaa.gov/projects/mrms/",
+    what: "Radar for the continental US, colored rain or snow: every NEXRAD radar mosaicked by NOAA, with its precipitation type for each square kilometer. This server draws the last hour into map tiles itself, only while someone is looking.",
   },
   {
     name: "NOAA HRRR, via the Iowa Environmental Mesonet",
