@@ -207,7 +207,7 @@ input[type="range"] {
   animation: you-pulse 2s ease-out infinite;
 }
 
-/* NHC forecast points: the stage letter in a circle colored by strength. */
+/* NHC forecast points: TD / TS / H1–H5 in a circle colored by strength. */
 .tropical-point {
   display: flex;
   width: 100%;
@@ -217,7 +217,8 @@ input[type="range"] {
   border-radius: 9999px;
   border: 2px solid white;
   color: #111;
-  font: 700 11px/1 system-ui, sans-serif;
+  font: 700 10px/1 system-ui, sans-serif;
+  letter-spacing: -0.03em;
   box-shadow: 0 1px 4px rgb(0 0 0 / 0.5);
 }
 

@@ -273,6 +273,7 @@ export function parseCurrentStorms(json: unknown): TropicalStorm[] {
         name,
         classification,
         title: stormTitle(classification, name),
+        windKt: kt,
         windMph: kt === null ? null : ktToMph(kt),
         pressureMb: num(s.pressure),
         position: [lat, lon],
@@ -307,6 +308,39 @@ export function stageColor(stage: TropicalStage): string {
       return "#E0245E";
     default:
       return "#B0B0B8";
+  }
+}
+
+/** Saffir–Simpson category (1–5) for a hurricane's sustained wind in knots. */
+export function hurricaneCategory(kt: number): number {
+  if (kt >= 137) return 5;
+  if (kt >= 113) return 4;
+  if (kt >= 96) return 3;
+  if (kt >= 83) return 2;
+  return 1;
+}
+
+/**
+ * What a forecast point's circle says: TD, TS, or the hurricane's category
+ * (H1–H5) from its wind; post-tropical stays NHC's L, a disturbance is blank.
+ * Without a wind, a hurricane is H1 and a major hurricane H3 — the least
+ * either can be.
+ */
+export function stageLabel(stage: TropicalStage, windKt: number | null): string {
+  switch (stage) {
+    case "D":
+      return "TD";
+    case "S":
+      return "TS";
+    case "H":
+    case "M": {
+      const floor = stage === "M" ? 3 : 1;
+      return `H${Math.max(floor, windKt === null ? floor : hurricaneCategory(windKt))}`;
+    }
+    case "L":
+      return "L";
+    default:
+      return "";
   }
 }
 

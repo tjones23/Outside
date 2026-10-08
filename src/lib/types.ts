@@ -271,6 +271,8 @@ export interface TropicalStorm {
   classification: string;
   /** "Tropical Storm Isaias". */
   title: string;
+  /** Knots, as NHC reports it; `windMph` is the rounded mph. */
+  windKt: number | null;
   windMph: number | null;
   pressureMb: number | null;
   position: LatLng;

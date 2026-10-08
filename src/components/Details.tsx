@@ -4,7 +4,7 @@ import { alertGroupName, alertLevelName } from "@/lib/alert-catalog";
 import { categoryColor, categoryGlyph, categoryName } from "@/lib/categories";
 import { formatDateTime, formatUtcTime } from "@/lib/format";
 import { dayLabel } from "@/lib/reports";
-import { coastalName, currentStage, ktToMph, stageColor } from "@/lib/tropical";
+import { coastalName, currentStage, ktToMph, stageColor, stageLabel } from "@/lib/tropical";
 import type { StormAlert, StormReport, TropicalStorm } from "@/lib/types";
 import { useNow } from "./providers/useNow";
 import { Sheet } from "./ui/Sheet";
@@ -94,11 +94,11 @@ export function TropicalDetail({ storm, onClose }: { storm: TropicalStorm; onClo
             {storm.forecast.slice(1).map((p) => (
               <li key={p.tau} className="flex items-center gap-3 py-1.5">
                 <span
-                  className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-black"
+                  className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold tracking-tight text-black"
                   style={{ background: stageColor(p.stage) }}
                   aria-hidden="true"
                 >
-                  {p.stage}
+                  {stageLabel(p.stage, p.windKt)}
                 </span>
                 <span className="min-w-0 flex-1 truncate">{p.label || `${p.tau} h`}</span>
                 <span className="shrink-0 tabular-nums text-muted">

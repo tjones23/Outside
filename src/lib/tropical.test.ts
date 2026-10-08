@@ -13,6 +13,7 @@ import {
   parseOutlookAreas,
   parsePastTrack,
   parseTrack,
+  stageLabel,
   stormLayerId,
   stormTitle,
 } from "./tropical";
@@ -103,5 +104,19 @@ describe("helpers", () => {
     const [storm] = parseCurrentStorms(jsonFixture("nhc-current-storms.json"));
     expect(currentStage(storm)).toBe("S");
     expect(currentStage({ ...storm, classification: "HU", windMph: 120 })).toBe("M");
+  });
+
+  it("labels forecast points TD, TS, or the hurricane's category", () => {
+    expect(stageLabel("D", 30)).toBe("TD");
+    expect(stageLabel("S", 50)).toBe("TS");
+    expect(stageLabel("H", 65)).toBe("H1");
+    expect(stageLabel("H", 90)).toBe("H2");
+    expect(stageLabel("M", 100)).toBe("H3");
+    expect(stageLabel("M", 115)).toBe("H4");
+    expect(stageLabel("M", 140)).toBe("H5");
+    expect(stageLabel("H", null)).toBe("H1");
+    expect(stageLabel("M", null)).toBe("H3");
+    expect(stageLabel("L", 40)).toBe("L");
+    expect(stageLabel("X", null)).toBe("");
   });
 });

@@ -11,6 +11,7 @@ import {
   outlookRiskColor,
   pastColor,
   stageColor,
+  stageLabel,
 } from "@/lib/tropical";
 import type { Theme } from "@/lib/theme";
 import type { TropicalData, TropicalForecastPoint, TropicalStage, TropicalStorm } from "@/lib/types";
@@ -22,7 +23,7 @@ import { MapPopup, PopupButton } from "./layers";
  * - `TropicalAreas`, below the alerts: each storm's cone and the outlook's
  *   development areas — big, faint shapes that shouldn't cover warnings.
  * - `TropicalTracks`, above the labels: past track, forecast track, coastal
- *   watches and warnings, the forecast points (NHC-style letters in colored
+ *   watches and warnings, the forecast points (TD / TS / H1–H5 in colored
  *   circles), and a name tag beside each storm that opens its details.
  */
 
@@ -32,16 +33,17 @@ function mph(kt: number | null): string {
 
 const icons = new Map<string, ReturnType<typeof divIcon>>();
 
-/** A forecast point: NHC's letter (D / S / H / M) in a circle colored by strength. */
-function stageIcon(stage: TropicalStage, now: boolean) {
-  const key = `${stage}${now ? "*" : ""}`;
+/** A forecast point: TD / TS / H1–H5 in a circle colored by strength. */
+function stageIcon(stage: TropicalStage, windKt: number | null, now: boolean) {
+  const text = stageLabel(stage, windKt);
+  const key = `${stage}${text}${now ? "*" : ""}`;
   let icon = icons.get(key);
   if (!icon) {
-    const size = now ? 26 : 20;
+    const size = now ? 28 : 22;
     icon = divIcon({
       className: "",
       iconSize: [size, size],
-      html: `<div class="tropical-point${now ? " tropical-point-now" : ""}" style="background:${stageColor(stage)}">${stage === "X" ? "" : stage}</div>`,
+      html: `<div class="tropical-point${now ? " tropical-point-now" : ""}" style="background:${stageColor(stage)}">${text}</div>`,
     });
     icons.set(key, icon);
   }
@@ -174,7 +176,7 @@ function StormTrack({
               coord: storm.position,
               tau: 0,
               label: "Now",
-              windKt: null,
+              windKt: storm.windKt ?? null,
               gustKt: null,
               stage: currentStage(storm),
               stageName: storm.title,
@@ -222,7 +224,7 @@ function StormTrack({
         eventHandlers={{ click: () => onSelect(storm) }}
       />
       {points.map((p, i) => (
-        <Marker key={`tf-${i}`} position={p.coord} icon={stageIcon(p.stage, i === 0)} zIndexOffset={i === 0 ? 500 : 0}>
+        <Marker key={`tf-${i}`} position={p.coord} icon={stageIcon(p.stage, p.windKt, i === 0)} zIndexOffset={i === 0 ? 500 : 0}>
           <MapPopup>
             <strong className="block">{i === 0 ? storm.title : `${p.stageName} · ${p.label}`}</strong>
             <span className="block text-muted">
