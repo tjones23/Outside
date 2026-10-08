@@ -328,13 +328,40 @@ public_on() {
     return 1
   fi
 
-  local funnel_err
-  if ! funnel_err="$(ts funnel --bg --https="$TS_HTTPS_PORT" "$PORT" 2>&1)"; then
-    err "tailscale funnel failed — production is on the tailnet, but not public."
-    [ -n "$funnel_err" ] && say "$funnel_err" | sed 's/^/  /'
-    say "  ${DIM}Funnel may need enabling for this tailnet or node — see https://tailscale.com/kb/1223/funnel${RESET}"
+  # --yes skips the CLI's own interactive "Continue?" confirmation. But when
+  # Funnel has never been approved for this tailnet/node, the CLI doesn't
+  # fail — it prints a one-time setup URL and then blocks, polling until
+  # someone opens it. Captured into $funnel_out below, that message is
+  # invisible and the command never returns on its own, so it's bounded here
+  # the same way ts_connect bounds `tailscale up`.
+  local funnel_out
+  funnel_out="$(mktemp -t outside-funnel)" || return 1
+  ts funnel --bg --yes --https="$TS_HTTPS_PORT" "$PORT" >"$funnel_out" 2>&1 &
+  local funnel_pid=$! waited=0
+  while [ "$waited" -lt 10 ] && kill -0 "$funnel_pid" 2>/dev/null; do
+    sleep 1
+    waited=$((waited + 1))
+  done
+
+  if kill -0 "$funnel_pid" 2>/dev/null; then
+    kill_tree "$funnel_pid" KILL
+    err "Funnel needs a one-time approval — production is on the tailnet, but not public yet."
+    sed 's/^/  /' "$funnel_out"
+    say "  ${DIM}Open that link, approve Funnel for this node, then run '$SELF public' again.${RESET}"
+    rm -f "$funnel_out"
     return 1
   fi
+
+  wait "$funnel_pid" 2>/dev/null
+  local funnel_rc=$?
+  if [ "$funnel_rc" -ne 0 ]; then
+    err "tailscale funnel failed — production is on the tailnet, but not public."
+    sed 's/^/  /' "$funnel_out"
+    say "  ${DIM}Funnel may need enabling for this tailnet or node — see https://tailscale.com/kb/1223/funnel${RESET}"
+    rm -f "$funnel_out"
+    return 1
+  fi
+  rm -f "$funnel_out"
 
   sync_awake
   warn "Public: anyone with this link can now open it, not just your tailnet."
