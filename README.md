@@ -113,6 +113,7 @@ a command:
 ./run-prod.command start     # serve the last build, to this Mac only
 ./run-prod.command lan       # ...and to this network, plain HTTP   (lan off to undo)
 ./run-prod.command tailnet   # ...and to the tailnet, over HTTPS    (tailnet off to undo)
+./run-prod.command public    # ...and to the internet, via Tailscale Funnel (public off to undo)
 ./run-prod.command stop      # stop serving and withdraw from both
 ./run-prod.command setup     # once: let hosting keep a closed-lid Mac awake
 ```
@@ -121,7 +122,16 @@ a command:
 | --- | --- |
 | This Mac | `http://localhost:3001` |
 | This network | `http://<lan-ip>:3001` |
-| Tailnet | `https://<machine>.<tailnet>.ts.net:8443` |
+| Tailnet | `https://outside.<tailnet>.ts.net` |
+| Public | same address as Tailnet, once `public` is on |
+
+**`public` means anyone with the link**, not just your tailnet — Tailscale
+Funnel proxies the same address onto the internet. The `*.ts.net` certificate
+is visible in public certificate-transparency logs, so the address can be
+found without being shared. Place search (`/api/geocode`) is rate-limited per
+visitor and site-wide, since it runs under this server's own identity against
+an upstream that bans abusive IPs; everything else just serves shared cached
+copies of public feeds. `public off` returns to tailnet-only.
 
 **Location and notifications need HTTPS.** Browsers only offer them to a
 secure page. They work on `localhost` and the tailnet address; on the plain-HTTP
@@ -133,13 +143,26 @@ Notifications come from the open page checking for new warnings once a minute �
 there is no push server. Close every tab and nothing arrives. Outside is not an
 official warning source.
 
-**Running alongside WhatsGood.** Both apps host from the same Mac: WhatsGood on
-3000 / tailnet 443, Outside on 3001 / tailnet 8443. Each launcher only touches
-its own `tailscale serve` port. `pmset -a disablesleep` is one switch for the
-whole machine, so the closed-lid hold is shared through `scripts/lid-hold.sh`
-(identical in both repos): sleep is re-enabled only once neither app is
-hosting, and either app's sudoers rule serves both. Change the ports with
-`OUTSIDE_PORT` / `OUTSIDE_TS_PORT` if needed.
+**Its own Tailscale node.** On the tailnet, Outside isn't a second port on
+this Mac's own Tailscale — it logs in as a separate node (named `outside` by
+default; override with `OUTSIDE_TS_HOSTNAME`), via its own userspace
+`tailscaled` that only this launcher runs. That's what gives it a clean
+address with no port, and it never touches whatever Tailscale this Mac
+otherwise uses (WhatsGood's launcher, if it's here too, is left alone). It
+needs a one-time login the first time `tailnet` or `public` runs — open the
+URL it prints — and, in the Tailscale admin console, "Disable key expiry"
+on the `outside` node so it doesn't need another login in ~180 days. State
+(including its login keys) lives in `.outside/tailscale/`, gitignored.
+Change the port it serves on with `OUTSIDE_TS_PORT` if 443 is ever taken on
+that node.
+
+**Running alongside WhatsGood.** Both apps host from the same Mac on
+different ports (WhatsGood 3000, Outside 3001) and different Tailscale
+nodes, so neither can collide with the other's port or address.
+`pmset -a disablesleep` is one switch for the whole machine, so the
+closed-lid hold is shared through `scripts/lid-hold.sh` (identical in both
+repos): sleep is re-enabled only once neither app is hosting, and either
+app's sudoers rule serves both.
 
 Everything else — `next start` rather than `next dev`, sleep held off only
 while hosting, a failed rebuild restoring the previous build, servers detached
@@ -161,6 +184,10 @@ from the terminal — works exactly as described in WhatsGood's README.
   for the same reason.
 - **Reports are preliminary.** SPC's feed is unfiltered first reports and can
   contain duplicates of the same event.
+- **Public hosting shares one Mac's bandwidth.** Each open map tab pulls
+  about 275 KB a minute of alerts plus map imagery, and Tailscale limits
+  Funnel bandwidth — fine for friends and family, not a big audience. The Mac
+  has to stay on and hosting for the public link to work.
 
 ## Attribution
 
