@@ -1,3 +1,4 @@
+import { airNowHour, airNowUrl, hourIso, parseAirNow } from "../air-quality";
 import {
   NWS_ALERTS_URL,
   NWS_WWA_OUTLINES_URL,
@@ -24,6 +25,7 @@ import { mrmsFileUrl, type MrmsProduct } from "../mrms";
 import { buildOutlook } from "../outlook";
 import { createRateLimiterState, recordHit } from "../rate-limit";
 import { parseSpcCsv, reportsUrl } from "../reports";
+import { parseSmokeKml, smokeUrl, sortPlumes, utcDate } from "../smoke";
 import {
   layerQueryUrl,
   NHC_CURRENT_STORMS_URL,
@@ -42,17 +44,33 @@ import {
   type StormLayer,
 } from "../tropical";
 import type {
+  AirQualityData,
+  AirQualitySite,
   ForecastFrames,
   ForecastProductId,
   GeocodeResult,
+  Hotspot,
   OutlookData,
   OutlookProduct,
   Ring,
+  SmokeData,
   StormAlert,
   StormReport,
   TropicalData,
   TropicalStorm,
+  WildfireIncident,
+  WildfirePerimeter,
 } from "../types";
+import {
+  ARCGIS_PAGE_SIZE,
+  hotspotsUrl,
+  incidentsUrl,
+  parseHotspots,
+  parseIncidents,
+  parsePage,
+  parsePerimeters,
+  perimetersUrl,
+} from "../wildfire";
 
 /**
  * Every upstream request, uncached and framework-free.
@@ -249,6 +267,92 @@ export async function fetchTropical(): Promise<TropicalData> {
     layer(index.get(OUTLOOK_LAYERS.points), parseDisturbances, []),
   ]);
   return { storms: filled, outlook, disturbances };
+}
+
+// --- Wildfire -----------------------------------------------------------------
+
+/** Past this many pages something is wrong with the query, not the fire season. */
+const MAX_ARCGIS_PAGES = 10;
+
+/**
+ * Every feature an ArcGIS query matches, a page at a time. The services cap
+ * each answer (2,000 features for WFIGS) and say when more are waiting.
+ */
+async function arcgisPages<T>(
+  url: (offset: number) => string,
+  parse: (features: ReturnType<typeof parsePage>["features"]) => T[],
+): Promise<T[]> {
+  const out: T[] = [];
+  for (let page = 0; page < MAX_ARCGIS_PAGES; page++) {
+    const { features, more } = parsePage(await getJson(url(page * ARCGIS_PAGE_SIZE)));
+    out.push(...parse(features));
+    if (!more || features.length === 0) return out;
+  }
+  throw new Error(`ArcGIS query still had more after ${MAX_ARCGIS_PAGES} pages`);
+}
+
+/** Active wildfires (NIFC WFIGS). */
+export function fetchFireIncidents(): Promise<WildfireIncident[]> {
+  return arcgisPages(incidentsUrl, parseIncidents);
+}
+
+/** Their mapped perimeters, simplified (NIFC WFIGS). */
+export function fetchFirePerimeters(): Promise<WildfirePerimeter[]> {
+  return arcgisPages(perimetersUrl, parsePerimeters);
+}
+
+/** VIIRS hotspots over North America, the last day. */
+export function fetchHotspots(): Promise<Hotspot[]> {
+  return arcgisPages(hotspotsUrl, parseHotspots);
+}
+
+/** One UTC day's HMS smoke, or null when NOAA hasn't published that day (404). */
+export async function fetchSmokeDay(date: string): Promise<SmokeData | null> {
+  try {
+    const response = await get(smokeUrl(date), "application/vnd.google-earth.kml+xml, text/xml, */*", 30_000);
+    return { date, plumes: sortPlumes(parseSmokeKml(await response.text())) };
+  } catch (error) {
+    if (error instanceof UpstreamError && error.status === 404) return null;
+    throw error;
+  }
+}
+
+/**
+ * Today's smoke analysis, or yesterday's until today's has any plumes — the
+ * day's file appears, then fills, some hours into the UTC day. Uncached, for
+ * `check:sources`.
+ */
+export async function fetchSmoke(now: Date): Promise<SmokeData> {
+  const today = await fetchSmokeDay(utcDate(now));
+  if (today && today.plumes.length > 0) return today;
+  const yesterday = await fetchSmokeDay(utcDate(now, 1));
+  return yesterday ?? today ?? { date: utcDate(now), plumes: [] };
+}
+
+// --- Air quality --------------------------------------------------------------
+
+/** One hour's AirNow observations, or null when that hour isn't published yet (404). */
+export async function fetchAirNowHour(hour: string): Promise<AirQualitySite[] | null> {
+  try {
+    const response = await get(airNowUrl(hour), "text/plain, text/csv, */*", 30_000);
+    return parseAirNow(await response.text(), hour);
+  } catch (error) {
+    if (error instanceof UpstreamError && error.status === 404) return null;
+    throw error;
+  }
+}
+
+/** How far back to look for the newest hour: files land one to two hours late. */
+export const AIRNOW_LOOKBACK_HOURS = 4;
+
+/** The newest published hour of AirNow observations. Uncached, for `check:sources`. */
+export async function fetchAirQuality(now: Date): Promise<AirQualityData> {
+  for (let ago = 1; ago <= AIRNOW_LOOKBACK_HOURS; ago++) {
+    const hour = airNowHour(now, ago);
+    const sites = await fetchAirNowHour(hour);
+    if (sites) return { hour: hourIso(hour), sites };
+  }
+  throw new Error(`AirNow has no observations for the last ${AIRNOW_LOOKBACK_HOURS} hours`);
 }
 
 // --- Forecast animations -----------------------------------------------------

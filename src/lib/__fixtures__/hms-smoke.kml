@@ -1,0 +1,289 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2" xmlns:gx="http://www.google.com/kml/ext/2.2" xmlns:kml="http://www.opengis.net/kml/2.2" xmlns:atom="http://www.w3.org/2005/Atom">
+<Document>
+<name>HMS Smoke Mapping-20261010</name>
+<description><![CDATA[NOAA Hazard Mapping System multisatellite smoke mapping data.<br>  For product information please visit: <a href="https://www.ospo.noaa.gov/Products/land/hms.html#about">https://www.ospo.noaa.gov/Products/land/hms.html#about</a> ]]></description>
+ <Style id="Smoke_Light_hl">
+   <IconStyle>
+     <scale>1.3</scale>
+     <Icon>
+       <href>http://maps.google.com/mapfiles/kml/pushpin/ylw-pushpin.png</href>
+     </Icon>
+     <hotSpot x="20" y="2" xunits="pixels" yunits="pixels"/>
+   </IconStyle>
+   <LineStyle>
+     <color>FFFFFFFF</color>
+     <width>1</width>
+   </LineStyle>
+   <PolyStyle>
+     <color>4400FF00</color>
+   </PolyStyle>
+ </Style>
+ <Style id="Smoke_Light">
+   <IconStyle>
+     <scale>1.1</scale>
+     <Icon>
+       <href>http://maps.google.com/mapfiles/kml/pushpin/ylw-pushpin.png</href>
+     </Icon>
+     <hotSpot x="20" y="2" xunits="pixels" yunits="pixels"/>
+   </IconStyle>
+   <LineStyle>
+     <color>FFFFFFFF</color>
+     <width>1</width>
+   </LineStyle>
+   <PolyStyle>
+     <color>4400FF00</color>
+   </PolyStyle>
+ </Style>
+ <StyleMap id="Smoke_Light_style">
+   <Pair>
+     <key>normal</key>
+     <styleUrl>#Smoke_Light</styleUrl>
+   </Pair>
+   <Pair>
+     <key>highlight</key>
+     <styleUrl>#Smoke_Light_hl</styleUrl>
+   </Pair>
+ </StyleMap>
+ <Style id="Smoke_Medium_hl">
+   <IconStyle>
+     <scale>1.3</scale>
+     <Icon>
+       <href>http://maps.google.com/mapfiles/kml/pushpin/ylw-pushpin.png</href>
+     </Icon>
+     <hotSpot x="20" y="2" xunits="pixels" yunits="pixels"/>
+   </IconStyle>
+   <LineStyle>
+     <color>FFFFFFFF</color>
+     <width>1</width>
+   </LineStyle>
+   <PolyStyle>
+     <color>4400FFFF</color>
+   </PolyStyle>
+ </Style>
+ <Style id="Smoke_Medium">
+   <IconStyle>
+     <scale>1.1</scale>
+     <Icon>
+       <href>http://maps.google.com/mapfiles/kml/pushpin/ylw-pushpin.png</href>
+     </Icon>
+     <hotSpot x="20" y="2" xunits="pixels" yunits="pixels"/>
+   </IconStyle>
+   <LineStyle>
+     <color>FFFFFFFF</color>
+     <width>1</width>
+   </LineStyle>
+   <PolyStyle>
+     <color>4400FFFF</color>
+   </PolyStyle>
+ </Style>
+ <StyleMap id="Smoke_Medium_style">
+   <Pair>
+     <key>normal</key>
+     <styleUrl>#Smoke_Medium</styleUrl>
+   </Pair>
+   <Pair>
+     <key>highlight</key>
+     <styleUrl>#Smoke_Medium_hl</styleUrl>
+   </Pair>
+ </StyleMap>
+ <Folder>
+   <name>Overlay</name>
+   <open>0</open>
+   <Style>
+     <ListStyle>
+     <listItemType>check</listItemType>
+     <bgColor>00ffffff</bgColor>
+     <maxSnippetLines>2</maxSnippetLines>
+   </ListStyle>
+   </Style>
+   <ScreenOverlay>
+    <name>NOAA logo</name>
+    <color>ffffffff</color>
+    <visibility>1</visibility>
+    <Icon>
+      <href>https://www.ospo.noaa.gov/graphics/Products/land/fire/hms/png_logo/noaa_logo.png</href>
+    </Icon>
+    <overlayXY x="0" y="1" xunits="fraction" yunits="fraction"/>
+    <screenXY x="1" y="1" xunits="pixels" yunits="insetPixels"/>
+    <size x="100" y="100" xunits="pixels" yunits="pixels"/>
+   </ScreenOverlay>
+   <ScreenOverlay>
+    <name>Analysis Date</name>
+    <color>ffffffff</color>
+    <visibility>1</visibility>
+    <Icon>
+      <href><![CDATA[http://chart.apis.google.com/chart?chst=d_text_outline&chld=FFBBBB|16|h|BB0000|b|Analysis%20for:%2020261010]]></href>
+    </Icon>
+     <overlayXY x="1" y="1" xunits="fraction" yunits="fraction"/>
+    <screenXY x="2" y="92" xunits="insetPixels" yunits="insetPixels"/>
+   </ScreenOverlay>
+   <ScreenOverlay>
+    <name>Generated DateTime</name>
+    <color>ffffffff</color>
+    <visibility>1</visibility>
+    <Icon>
+      <href><![CDATA[http://chart.apis.google.com/chart?chst=d_text_outline&chld=FFBBBB|16|h|BB0000|b|Generated:%201013GMT%2020261011]]></href>
+    </Icon>
+    <overlayXY x="1" y="1" xunits="fraction" yunits="fraction"/>
+    <screenXY x="2" y="130" xunits="insetPixels" yunits="insetPixels"/>
+   </ScreenOverlay>
+   <ScreenOverlay>
+     <name>Legend</name>
+     <color>ffffffff</color>
+     <visibility>1</visibility>
+     <Icon>
+        <href>https://www.ospo.noaa.gov/graphics/Products/land/fire/hms/png_logo/kml_legend.png</href>
+     </Icon>
+     <overlayXY x="1" y="1" xunits="fraction" yunits="fraction"/>
+     <screenXY x="1" y="1" xunits="insetPixels" yunits="insetPixels"/>
+     <size x="300" y="90" xunits="pixels" yunits="pixels"/>
+   </ScreenOverlay>
+ </Folder>
+  <Folder>
+    <name>Smoke (Light)</name>
+    <open>0</open>
+    <Style>
+      <ListStyle>
+      <listItemType>check</listItemType>
+      <bgColor>00ffffff</bgColor>
+      <maxSnippetLines>2</maxSnippetLines>
+    </ListStyle>
+    </Style>
+<Placemark><description><![CDATA[<div style="width:170px;">Start Time: 2026283 1200UTC<br>End Time: 2026283 1500UTC<br>Density: Light<br>Satellite: GOES-WEST</div>]]></description>
+<styleUrl>#Smoke_Light_style</styleUrl>
+<Polygon>
+  <tessellate>1</tessellate>
+  <gx:drawOrder>0</gx:drawOrder>
+  <outerBoundaryIs>
+    <LinearRing>
+      <coordinates>
+        -75.798483,20.774270,0
+        -75.844411,20.787776,0
+        -75.925460,20.812091,0
+        -76.003807,20.836406,0
+        -76.087558,20.852616,0
+        -76.133486,20.858019,0
+        -76.179414,20.858019,0
+        -76.219938,20.847212,0
+        -76.252358,20.836406,0
+        -76.298286,20.822897,0
+        -76.325302,20.822897,0
+        -76.344214,20.812091,0
+        -76.349617,20.790478,0
+        -76.333407,20.760760,0
+        -76.300988,20.747252,0
+        -76.241552,20.739147,0
+        -76.187519,20.733743,0
+        -76.130784,20.731042,0
+        -76.074050,20.728340,0
+        -76.011912,20.731042,0
+        -75.941670,20.733743,0
+        -75.874129,20.731042,0
+        -75.817394,20.722937,0
+        -75.766063,20.712130,0
+        -75.739047,20.706727,0
+        -75.701224,20.701324,0
+        -75.671506,20.701324,0
+        -75.660699,20.701324,0
+        -75.639086,20.706727,0
+        -75.630981,20.714832,0
+        -75.630981,20.725639,0
+        -75.644490,20.736445,0
+        -75.666103,20.747252,0
+        -75.685014,20.755357,0
+        -75.701224,20.760760,0
+        -75.722837,20.766163,0
+        -75.730942,20.768865,0
+        -75.798483,20.774270,0
+      </coordinates>
+    </LinearRing>
+  </outerBoundaryIs>
+</Polygon>
+</Placemark>
+<Placemark><description><![CDATA[<div style="width:170px;">Start Time: 2026283 1200UTC<br>End Time: 2026283 1500UTC<br>Density: Medium<br>Satellite: GOES-WEST</div>]]></description>
+<styleUrl>#Smoke_Medium_style</styleUrl>
+<Polygon>
+  <tessellate>1</tessellate>
+  <gx:drawOrder>1</gx:drawOrder>
+  <outerBoundaryIs>
+    <LinearRing>
+      <coordinates>
+        -96.986061,48.516070,0
+        -97.319533,48.582764,0
+        -97.675238,48.582764,0
+        -98.119869,48.582764,0
+        -98.586731,48.538301,0
+        -98.920204,48.427144,0
+        -99.275909,48.227060,0
+        -99.609382,47.960281,0
+        -99.942855,47.671271,0
+        -100.142940,47.448956,0
+        -100.365250,47.226641,0
+        -100.632030,47.004325,0
+        -101.298980,46.670852,0
+        -101.632450,46.537463,0
+        -101.965920,46.470768,0
+        -102.321630,46.381842,0
+        -102.677330,46.226221,0
+        -102.966340,46.048369,0
+        -103.299820,45.826054,0
+        -103.566600,45.692664,0
+        -103.900070,45.648201,0
+        -104.233540,45.537044,0
+        -104.366930,45.336960,0
+        -104.344700,45.114644,0
+        -104.144620,44.936792,0
+        -103.855610,44.847866,0
+        -103.433210,44.825634,0
+        -102.988580,44.847866,0
+        -102.543940,44.892329,0
+        -102.121550,44.936792,0
+        -101.788070,44.914561,0
+        -101.632450,44.758940,0
+        -101.610220,44.558856,0
+        -101.676910,44.358772,0
+        -101.877000,44.158688,0
+        -102.143780,44.003068,0
+        -102.455020,43.825215,0
+        -102.632870,43.736289,0
+        -102.744030,43.625131,0
+        -102.744030,43.425048,0
+        -102.543940,43.358353,0
+        -102.143780,43.336121,0
+        -101.810300,43.336121,0
+        -101.432370,43.425048,0
+        -100.965510,43.580668,0
+        -100.676500,43.736289,0
+        -100.009550,44.091994,0
+        -99.742771,44.292078,0
+        -99.409298,44.469930,0
+        -99.142520,44.625551,0
+        -98.897973,44.803403,0
+        -98.653426,45.003487,0
+        -98.364416,45.292497,0
+        -98.142100,45.470349,0
+        -97.786396,45.737128,0
+        -97.430691,45.959443,0
+        -97.030523,46.159527,0
+        -96.652587,46.337379,0
+        -96.252420,46.604158,0
+        -95.941178,46.804241,0
+        -95.741094,47.004325,0
+        -95.629937,47.293335,0
+        -95.629937,47.515651,0
+        -95.674400,47.737966,0
+        -95.807789,47.915818,0
+        -95.941178,48.004744,0
+        -96.096799,48.093671,0
+        -96.341346,48.204828,0
+        -96.519198,48.315986,0
+        -96.986061,48.516070,0
+      </coordinates>
+    </LinearRing>
+  </outerBoundaryIs>
+</Polygon>
+</Placemark>
+  </Folder>
+</Document>
+</kml>

@@ -9,18 +9,24 @@
  */
 import { gunzipSync } from "node:zlib";
 import {
+  fetchAirQuality,
   fetchAlertFeed,
   fetchAlerts,
+  fetchFireIncidents,
+  fetchFirePerimeters,
   fetchForecast,
   fetchGeocode,
+  fetchHotspots,
   fetchMrmsFile,
   fetchOutlook,
   fetchReportDay,
+  fetchSmoke,
   fetchTropical,
   fetchWwaOutlines,
   userAgent,
 } from "../src/lib/sources/upstream";
 import { outlookProduct } from "../src/lib/outlook";
+import { HOTSPOT_MAX_HOURS } from "../src/lib/wildfire";
 import { convectiveDate } from "../src/lib/reports";
 import { parseGrib2, recentFrameTimes, type MrmsProduct } from "../src/lib/mrms";
 
@@ -106,6 +112,38 @@ async function main(): Promise<void> {
     const { storms, outlook, disturbances } = await fetchTropical();
     const named = storms.map((s) => `${s.name} (${s.forecast.length} pts, ${s.cone.length ? "cone" : "no cone"})`);
     return `${storms.length} storms${named.length ? `: ${named.join(", ")}` : ""}; ${outlook.length} outlook areas, ${disturbances.length} disturbances`;
+  });
+
+  await check("NIFC wildfires (WFIGS)", async () => {
+    const fires = await fetchFireIncidents();
+    const active = fires.filter((f) => (f.contained ?? 0) < 100).length;
+    const big = fires.filter((f) => (f.acres ?? 0) >= 1000).length;
+    return `${fires.length} wildfires (${active} not yet contained, ${big} over 1,000 acres)`;
+  });
+
+  await check("NIFC fire perimeters (WFIGS)", async () => {
+    const perimeters = await fetchFirePerimeters();
+    const rings = perimeters.reduce((n, p) => n + p.rings.length, 0);
+    return `${perimeters.length} perimeters, ${rings} pieces`;
+  });
+
+  await check("VIIRS hotspots (Living Atlas)", async () => {
+    const hotspots = await fetchHotspots();
+    const recent = hotspots.filter((h) => Date.now() - h.time <= 6 * 3_600_000).length;
+    return `${hotspots.length} in the last ${HOTSPOT_MAX_HOURS} h (${recent} in the last 6 h)`;
+  });
+
+  await check("NOAA HMS smoke", async () => {
+    const { date, plumes } = await fetchSmoke(now);
+    const heavy = plumes.filter((p) => p.density === "heavy").length;
+    return `${plumes.length} plumes for ${date} (${heavy} heavy)`;
+  });
+
+  await check("EPA AirNow hourly AQI", async () => {
+    const { hour, sites } = await fetchAirQuality(now);
+    const worst = sites.reduce((max, s) => Math.max(max, s.aqi), 0);
+    const age = Math.round((Date.now() - Date.parse(hour)) / 60_000);
+    return `${sites.length} monitors for ${hour.slice(11, 16)}Z (${age} min ago), worst AQI ${worst}`;
   });
 
   await check("HRRR future radar (IEM)", async () => {

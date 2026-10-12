@@ -114,9 +114,19 @@ describe("normalizeFilters", () => {
     });
   });
 
-  it("reads settings saved before alerts, tropical and forecasts existed", () => {
+  it("reads settings saved before alerts, tropical, forecasts and wildfire existed", () => {
     const old = { ...DEFAULT_FILTERS } as Record<string, unknown>;
-    for (const k of ["alertGroups", "showAdvisories", "showStatements", "showTropical", "forecastProduct"]) {
+    for (const k of [
+      "alertGroups",
+      "showAdvisories",
+      "showStatements",
+      "showTropical",
+      "forecastProduct",
+      "showFires",
+      "showHotspots",
+      "showSmoke",
+      "showAirQuality",
+    ]) {
       delete old[k];
     }
     expect(normalizeFilters(old)).toEqual(DEFAULT_FILTERS);

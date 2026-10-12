@@ -31,6 +31,11 @@ export const DEFAULT_FILTERS: FilterSettings = {
   showStatements: false,
   showTropical: true,
   forecastProduct: null,
+  showFires: true,
+  // Hotspots, smoke and air quality each cover a lot of map; on request.
+  showHotspots: false,
+  showSmoke: false,
+  showAirQuality: false,
 };
 
 /** Same options as the mobile filter screen. */
@@ -86,6 +91,10 @@ export function normalizeFilters(input: unknown): FilterSettings {
     showStatements: bool("showStatements"),
     showTropical: bool("showTropical"),
     forecastProduct: forecast,
+    showFires: bool("showFires"),
+    showHotspots: bool("showHotspots"),
+    showSmoke: bool("showSmoke"),
+    showAirQuality: bool("showAirQuality"),
   };
 }
 

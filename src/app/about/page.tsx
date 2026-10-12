@@ -45,6 +45,26 @@ const SOURCES = [
     what: "The National Weather Service's gridded forecast for the next week: temperature, feels-like, gusts, rain, rain chance, cloud cover and snow.",
   },
   {
+    name: "NIFC — Wildland Fire Interagency Geospatial Services",
+    href: "https://data-nifc.opendata.arcgis.com/",
+    what: "Every wildfire not yet declared out, with its size, containment and cause, and its mapped perimeter — the interagency record federal and state agencies report to. Fires checked every 5 minutes, perimeters every 15. It can trail what's happening on the ground by hours.",
+  },
+  {
+    name: "NASA FIRMS VIIRS hotspots, via Esri Living Atlas",
+    href: "https://firms.modaps.eosdis.nasa.gov/",
+    what: "Heat detected by the VIIRS instruments on the Suomi NPP, NOAA-20 and NOAA-21 satellites in the last 24 hours, over the US and Canada. Each dot is a 375-meter pixel; satellites pass a few times a day, so a new fire can take hours to appear.",
+  },
+  {
+    name: "NOAA Hazard Mapping System — smoke",
+    href: "https://www.ospo.noaa.gov/products/land/hms.html",
+    what: "Smoke plumes traced by NOAA analysts on GOES satellite imagery, by density, through the day. Shows yesterday's analysis until today's is drawn. This is smoke anywhere in the air column, not necessarily at the ground.",
+  },
+  {
+    name: "EPA AirNow",
+    href: "https://www.airnow.gov/",
+    what: "The hourly Air Quality Index from EPA, state, local and tribal monitors in the US, and Canada's, colored by EPA category. Each monitor shows its worst pollutant — usually PM2.5 near smoke, ozone on hot afternoons. Readings arrive an hour or two after the hour.",
+  },
+  {
     name: "Esri Gray Canvas",
     href: "https://www.esri.com/",
     what: "The map and its labels, in Dark Gray or Light Gray to match the theme. Esri, HERE, Garmin, © OpenStreetMap contributors.",

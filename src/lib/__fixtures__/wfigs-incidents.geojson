@@ -1,0 +1,100 @@
+{
+ "type": "FeatureCollection",
+ "crs": {
+  "type": "name",
+  "properties": {
+   "name": "EPSG:4326"
+  }
+ },
+ "features": [
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -108.673510317146,
+     33.2748382664595
+    ]
+   },
+   "properties": {
+    "IrwinID": "{530C7FA3-1421-4F31-9CE2-BDF33340691B}",
+    "IncidentName": "Sacaton",
+    "IncidentSize": 9861,
+    "PercentContained": 100,
+    "FireDiscoveryDateTime": 1782077760000,
+    "ModifiedOnDateTime_dt": 1790899553957,
+    "FireCause": "Natural",
+    "FireBehaviorGeneral": "Minimal",
+    "IncidentShortDescription": "15 Miles E from Glenwood, NM",
+    "POOState": "US-NM",
+    "POOCounty": "Catron",
+    "POOProtectingAgency": "USFS",
+    "TotalIncidentPersonnel": 1,
+    "UniqueFireIdentifier": "2026-NMGNF-000354"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -115.88561394769,
+     35.9715612126804
+    ]
+   },
+   "properties": {
+    "IrwinID": "{7ED237ED-B47A-4DAE-AAFC-401357EDFC43}",
+    "IncidentName": "MTZ/INYO/88A",
+    "IncidentSize": 0.1,
+    "PercentContained": null,
+    "FireDiscoveryDateTime": 1777847520000,
+    "ModifiedOnDateTime_dt": 1791738564223,
+    "FireCause": "Undetermined",
+    "FireBehaviorGeneral": null,
+    "IncidentShortDescription": null,
+    "POOState": "US-CA",
+    "POOCounty": "Inyo",
+    "POOProtectingAgency": "BLM",
+    "TotalIncidentPersonnel": null,
+    "UniqueFireIdentifier": "2026-CACDD-006997"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -121.027698026931,
+     48.9982058351123
+    ]
+   },
+   "properties": {
+    "IrwinID": "{A60CA689-BD59-4A2D-9BDC-CC551CEAFCA4}",
+    "IncidentName": "Border 2",
+    "IncidentSize": 9108,
+    "PercentContained": 74,
+    "FireDiscoveryDateTime": 1784250840000,
+    "ModifiedOnDateTime_dt": 1791761630717,
+    "FireCause": "Natural",
+    "FireBehaviorGeneral": "Minimal",
+    "IncidentShortDescription": "36 Miles NE from Marblemount, WA",
+    "POOState": "US-WA",
+    "POOCounty": "Whatcom",
+    "POOProtectingAgency": "NPS",
+    "TotalIncidentPersonnel": 18,
+    "UniqueFireIdentifier": "2026-WANCP-000266"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": null,
+   "properties": {
+    "IrwinID": "{00000000-0000-0000-0000-000000000000}",
+    "IncidentName": "No Geometry"
+   }
+  }
+ ],
+ "properties": {
+  "exceededTransferLimit": true
+ }
+}

@@ -125,6 +125,34 @@ export function FiltersPanel({ onClose }: { onClose: () => void }) {
         onChange={(v) => update({ showTropical: v })}
       />
 
+      <SectionTitle>Wildfire</SectionTitle>
+      <Switch
+        label="Fires and perimeters"
+        description="Every wildfire not yet declared out, sized by acres and colored by containment, with its mapped perimeter — from the interagency record (NIFC)."
+        checked={f.showFires}
+        onChange={(v) => update({ showFires: v })}
+      />
+      <Switch
+        label="Satellite hotspots"
+        description="Heat detected in the last 24 hours by the VIIRS instruments on NASA and NOAA satellites — often the first sign of a new fire, and where a big one is running."
+        checked={f.showHotspots}
+        onChange={(v) => update({ showHotspots: v })}
+      />
+      <Switch
+        label="Smoke"
+        description="Smoke plumes traced on satellite imagery by NOAA's Hazard Mapping System, by density. Updated through the day."
+        checked={f.showSmoke}
+        onChange={(v) => update({ showSmoke: v })}
+      />
+
+      <SectionTitle>Air quality</SectionTitle>
+      <Switch
+        label="Air quality monitors"
+        description="The latest hourly AQI from EPA AirNow's monitors in the US and Canada, colored the EPA way. Readings are an hour or two old."
+        checked={f.showAirQuality}
+        onChange={(v) => update({ showAirQuality: v })}
+      />
+
       <SectionTitle>Radar &amp; forecast</SectionTitle>
       <div className="flex flex-wrap gap-2">
         <Chip on={imagery === "off"} onClick={() => selectImagery("off")}>

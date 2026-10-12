@@ -5,7 +5,8 @@ import { categoryColor, categoryGlyph, categoryName } from "@/lib/categories";
 import { formatDateTime, formatUtcTime } from "@/lib/format";
 import { dayLabel } from "@/lib/reports";
 import { coastalName, currentStage, ktToMph, stageColor, stageLabel } from "@/lib/tropical";
-import type { StormAlert, StormReport, TropicalStorm } from "@/lib/types";
+import type { StormAlert, StormReport, TropicalStorm, WildfireIncident, WildfirePerimeter } from "@/lib/types";
+import { containmentColor, containmentText, formatAcres } from "@/lib/wildfire";
 import { useNow } from "./providers/useNow";
 import { Sheet } from "./ui/Sheet";
 import { Facts } from "./ui/controls";
@@ -122,6 +123,43 @@ export function TropicalDetail({ storm, onClose }: { storm: TropicalStorm; onClo
           </a>
         ))}
       </div>
+    </Sheet>
+  );
+}
+
+export function FireDetail({
+  fire,
+  perimeter,
+  onClose,
+}: {
+  fire: WildfireIncident;
+  perimeter: WildfirePerimeter | null;
+  onClose: () => void;
+}) {
+  const place = [fire.county && `${fire.county} County`, fire.state].filter(Boolean).join(", ");
+  return (
+    <Sheet title={`🔥 ${fire.name}`} onClose={onClose}>
+      <div className="mb-3 h-1 rounded-full" style={{ background: containmentColor(fire.contained) }} />
+      {fire.location && <p className="mb-3 text-sm leading-relaxed">{fire.location}</p>}
+      <Facts
+        rows={[
+          ["Size", formatAcres(fire.acres)],
+          ["Containment", fire.contained === null ? "Not reported" : containmentText(fire.contained)],
+          ["Fire behavior", fire.behavior ?? "—"],
+          ["Cause", fire.cause ?? "—"],
+          ["Where", place || "—"],
+          ["Protecting agency", fire.agency ?? "—"],
+          ["Personnel", fire.personnel !== null ? fire.personnel.toLocaleString() : "—"],
+          ["Discovered", formatDateTime(fire.discovered)],
+          ["Last updated", formatDateTime(fire.updated)],
+          ["Perimeter", perimeter ? `${formatAcres(perimeter.acres)}, mapped ${formatDateTime(perimeter.mapped)}` : "None mapped yet"],
+          ["Incident number", fire.fireId ?? "—"],
+        ]}
+      />
+      <p className="mt-4 text-xs leading-relaxed text-muted-dim">
+        From the interagency wildfire record (NIFC WFIGS), which can trail what&apos;s happening on the ground by
+        hours. For evacuations, follow your county&apos;s emergency alerts.
+      </p>
     </Sheet>
   );
 }
