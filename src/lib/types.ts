@@ -196,6 +196,14 @@ export interface FilterSettings {
   showTropical: boolean;
   /** A forecast-model animation in place of radar; null = off. */
   forecastProduct: ForecastProductId | null;
+  /** Wildfire incidents and their perimeters (NIFC). */
+  showFires: boolean;
+  /** VIIRS satellite hotspots, the last day. */
+  showHotspots: boolean;
+  /** NOAA HMS smoke plumes. */
+  showSmoke: boolean;
+  /** BLM's federal, state and tribal land ownership tiles. */
+  showLandOwnership: boolean;
 }
 
 export interface NotificationSettings {
@@ -336,4 +344,86 @@ export interface ForecastFrames {
   /** Unix seconds of the model run behind the newest frames, when known. */
   runTime: number | null;
   attribution: string;
+}
+
+// --- Wildfire -----------------------------------------------------------------
+
+/** A wildfire that isn't out yet, from NIFC's interagency record (WFIGS). */
+export interface WildfireIncident {
+  /** IRWIN id, lowercase without braces — shared with the fire's perimeter. */
+  id: string;
+  /** "Sacaton Fire". */
+  name: string;
+  /** Where it started. */
+  coord: LatLng;
+  acres: number | null;
+  /** 0–100; null when not reported (usually a new start). */
+  contained: number | null;
+  /** ISO 8601. */
+  discovered: string | null;
+  updated: string | null;
+  /** "Human", "Natural", "Undetermined". */
+  cause: string | null;
+  /** "Minimal", "Moderate", "Active", "Extreme". */
+  behavior: string | null;
+  /** "15 Miles E from Glenwood, NM". */
+  location: string | null;
+  county: string | null;
+  /** Two-letter state. */
+  state: string | null;
+  /** The protecting agency: "USFS", "BLM", "State"… */
+  agency: string | null;
+  personnel: number | null;
+  /** "2026-NMGNF-000354". */
+  fireId: string | null;
+}
+
+export interface WildfirePerimeter {
+  /** IRWIN id of the incident it outlines. */
+  id: string;
+  name: string;
+  rings: Ring[];
+  acres: number | null;
+  /** When the perimeter was mapped, ISO 8601. */
+  mapped: string | null;
+}
+
+/** The `/api/fires` payload. */
+export interface WildfireData {
+  incidents: WildfireIncident[];
+  perimeters: WildfirePerimeter[];
+  /** Perimeters failed to load; incidents are still current. */
+  perimetersMissing: boolean;
+}
+
+export type HotspotConfidence = "low" | "nominal" | "high";
+
+/** One VIIRS fire detection: a 375 m pixel hot enough to be burning. */
+export interface Hotspot {
+  coord: LatLng;
+  /** When the satellite saw it, Unix ms. */
+  time: number;
+  /** Fire radiative power, megawatts. */
+  frp: number | null;
+  confidence: HotspotConfidence;
+  /** "N", "N20", "N21". */
+  satellite: string;
+}
+
+export type SmokeDensity = "light" | "medium" | "heavy";
+
+export interface SmokePlume {
+  density: SmokeDensity;
+  rings: Ring[];
+  /** The window of imagery the plume was drawn from, ISO 8601. */
+  start: string | null;
+  end: string | null;
+  satellite: string | null;
+}
+
+/** The `/api/smoke` payload: one UTC day's HMS analysis. */
+export interface SmokeData {
+  /** "YYYY-MM-DD", UTC — today's, or yesterday's until today's is published. */
+  date: string;
+  plumes: SmokePlume[];
 }

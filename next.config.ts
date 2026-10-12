@@ -34,6 +34,15 @@ const nextConfig: NextConfig = {
     reportsPast: { stale: MINUTE, revalidate: 30 * MINUTE, expire: 6 * HOUR },
     // Outlooks are reissued a handful of times a day.
     outlook: { stale: MINUTE, revalidate: 15 * MINUTE, expire: 2 * HOUR },
+    // Wildfire incidents: WFIGS takes edits from dispatch all day.
+    fires: { stale: MINUTE, revalidate: 5 * MINUTE, expire: 30 * MINUTE },
+    // Perimeters are mostly remapped once a day, after night infrared flights.
+    perimeters: { stale: MINUTE, revalidate: 15 * MINUTE, expire: 2 * HOUR },
+    // VIIRS passes come a few times a day per satellite; FIRMS posts them
+    // within about three hours.
+    hotspots: { stale: MINUTE, revalidate: 15 * MINUTE, expire: 2 * HOUR },
+    // HMS analysts add smoke plumes through the day as GOES imagery comes in.
+    smoke: { stale: MINUTE, revalidate: 30 * MINUTE, expire: 6 * HOUR },
     // A failed upstream request, remembered briefly so an outage costs one
     // upstream request per feed every half minute, not one per poll.
     failure: { stale: 30, revalidate: 30, expire: MINUTE },

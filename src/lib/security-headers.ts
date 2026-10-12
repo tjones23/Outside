@@ -32,6 +32,8 @@ export const TILE_HOSTS = [
   "https://mesonet.agron.iastate.edu",
   // NWS forecast (NDFD) frames and their color-scale legends.
   "https://digital.weather.gov",
+  // Land ownership (BLM Surface Management Agency tiles).
+  "https://gis.blm.gov",
 ] as const;
 
 /**

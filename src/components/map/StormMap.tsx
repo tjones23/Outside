@@ -6,14 +6,15 @@ import { MapContainer, Pane, TileLayer, ZoomControl, useMap } from "react-leafle
 import { alertContains, byPriority } from "@/lib/alerts";
 import { forecastProduct } from "@/lib/forecast";
 import { US_BOUNDS } from "@/lib/geo";
+import { LAND_ATTRIBUTION_HTML, LAND_MAX_NATIVE_ZOOM, LAND_OPACITY, LAND_TILE_URL } from "@/lib/land";
 import {
   PRECIP_TYPE_ATTRIBUTION,
   PRECIP_TYPE_ATTRIBUTION_HTML,
   PRECIP_TYPE_MAX_NATIVE_ZOOM,
   precipTypeFrame,
 } from "@/lib/precip-type";
-import type { LatLng, RadarFrame, StormAlert, StormReport, TropicalStorm } from "@/lib/types";
-import { AlertDetail, ReportDetail, TropicalDetail } from "../Details";
+import type { LatLng, RadarFrame, StormAlert, StormReport, TropicalStorm, WildfireIncident } from "@/lib/types";
+import { AlertDetail, FireDetail, ReportDetail, TropicalDetail } from "../Details";
 import { FiltersPanel } from "../FiltersPanel";
 import { NearbyBanner } from "../NearbyBanner";
 import { useLocation } from "../providers/LocationProvider";
@@ -21,6 +22,7 @@ import { useStormData } from "../providers/StormDataProvider";
 import { useFilteredData } from "../providers/useFilteredData";
 import { useTheme } from "../providers/useTheme";
 import { BorderLayer } from "./borders";
+import { FireLayer, HotspotLayer, PerimeterLayer, SmokeLayer } from "./fires";
 import { ForecastLegend } from "./ForecastLegend";
 import { AlertLayer, AlertPickPopup, DamageLayer, OutlookLayer, ReportLayer, UserLocationMarker } from "./layers";
 import { OutlookLegend } from "./OutlookLegend";
@@ -28,6 +30,7 @@ import { PrecipTypeLegend } from "./PrecipTypeLegend";
 import { FrameLayer, FrameTimeline, useFramePlayback } from "./radar";
 import { SmoothWheelZoom } from "./SmoothWheelZoom";
 import { TropicalAreas, TropicalTracks } from "./tropical";
+import { WildfireLegend } from "./WildfireLegend";
 
 /**
  * Layer order, bottom to top. Each group gets its own pane so a feed that
@@ -41,12 +44,16 @@ import { TropicalAreas, TropicalTracks } from "./tropical";
  */
 const PANES = {
   outlook: 405,
+  smoke: 407,
   damage: 410,
   tropicalAreas: 412,
   alerts: 415,
+  perimeters: 416,
   borders: 418,
   labels: 420,
   tropical: 423,
+  hotspots: 426,
+  fires: 428,
   reports: 430,
   you: 435,
 } as const;
@@ -91,6 +98,9 @@ export default function StormMap({ active }: { active: boolean }) {
     radar,
     tropical,
     forecast,
+    fires,
+    hotspots,
+    smoke,
     alerts: alertFeed,
     reports: reportFeed,
   } = useStormData();
@@ -102,6 +112,7 @@ export default function StormMap({ active }: { active: boolean }) {
   const [selectedAlert, setSelectedAlert] = useState<StormAlert | null>(null);
   const [selectedReport, setSelectedReport] = useState<StormReport | null>(null);
   const [selectedStorm, setSelectedStorm] = useState<TropicalStorm | null>(null);
+  const [selectedFire, setSelectedFire] = useState<WildfireIncident | null>(null);
   const [pick, setPick] = useState<{ at: LatLng; alerts: StormAlert[]; n: number } | null>(null);
   const [recenter, setRecenter] = useState<{ to: LatLng; zoom: number; n: number } | null>(null);
 
@@ -119,6 +130,12 @@ export default function StormMap({ active }: { active: boolean }) {
   const forecastPlayback = useFramePlayback(forecastFrames, "oldest-first");
   const outlookData = outlook.data;
   const tropicalData = filters.showTropical ? tropical.data : null;
+  const fireData = filters.showFires ? fires.data : null;
+  const hotspotData = filters.showHotspots ? (hotspots.data?.hotspots ?? null) : null;
+  // Hotspot ages are measured from the poll that brought them, so a redraw never recolors them.
+  const hotspotsAt = hotspots.updatedAt ?? 0;
+  const smokeData = filters.showSmoke ? smoke.data : null;
+  const showWildfireLegend = filters.showFires || filters.showHotspots || filters.showSmoke || filters.showLandOwnership;
 
   // Every alert under a tap, most important first — the polygons stack.
   const pickAt = useCallback(
@@ -140,6 +157,9 @@ export default function StormMap({ active }: { active: boolean }) {
     radar.error && "radar",
     tropical.error && "tropical",
     forecast.error && "forecast",
+    fires.error && "wildfires",
+    hotspots.error && "hotspots",
+    smoke.error && "smoke",
   ].filter(Boolean);
 
   const locate = async () => {
@@ -165,6 +185,17 @@ export default function StormMap({ active }: { active: boolean }) {
           zIndex={1}
           {...STEADY_TILES}
         />
+        {filters.showLandOwnership && (
+          <TileLayer
+            url={LAND_TILE_URL}
+            attribution={LAND_ATTRIBUTION_HTML}
+            opacity={LAND_OPACITY}
+            maxNativeZoom={LAND_MAX_NATIVE_ZOOM}
+            maxZoom={19}
+            zIndex={2}
+            {...STEADY_TILES}
+          />
+        )}
         {radarFrames.length > 0 && (
           <FrameLayer
             playback={radarPlayback}
@@ -187,6 +218,9 @@ export default function StormMap({ active }: { active: boolean }) {
         <Pane name="outlook" style={{ zIndex: PANES.outlook }}>
           {outlookData && <OutlookLayer data={outlookData} theme={theme} />}
         </Pane>
+        <Pane name="smoke" style={{ zIndex: PANES.smoke, pointerEvents: "none" }}>
+          {smokeData && <SmokeLayer plumes={smokeData.plumes} />}
+        </Pane>
         <Pane name="damage" style={{ zIndex: PANES.damage }}>
           <DamageLayer areas={damageAreas} />
         </Pane>
@@ -195,6 +229,11 @@ export default function StormMap({ active }: { active: boolean }) {
         </Pane>
         <Pane name="alerts" style={{ zIndex: PANES.alerts }}>
           <AlertLayer alerts={alerts} onPick={pickAt} />
+        </Pane>
+        <Pane name="perimeters" style={{ zIndex: PANES.perimeters }}>
+          {fireData && (
+            <PerimeterLayer perimeters={fireData.perimeters} incidents={fireData.incidents} onSelect={setSelectedFire} />
+          )}
         </Pane>
         <Pane name="borders" style={{ zIndex: PANES.borders, pointerEvents: "none" }}>
           <BorderLayer theme={theme} />
@@ -209,6 +248,12 @@ export default function StormMap({ active }: { active: boolean }) {
         </Pane>
         <Pane name="tropical" style={{ zIndex: PANES.tropical }}>
           {tropicalData && <TropicalTracks data={tropicalData} theme={theme} onSelect={setSelectedStorm} />}
+        </Pane>
+        <Pane name="hotspots" style={{ zIndex: PANES.hotspots }}>
+          {hotspotData && <HotspotLayer hotspots={hotspotData} now={hotspotsAt} />}
+        </Pane>
+        <Pane name="fires" style={{ zIndex: PANES.fires }}>
+          {fireData && <FireLayer incidents={fireData.incidents} onSelect={setSelectedFire} />}
         </Pane>
         <Pane name="reports" style={{ zIndex: PANES.reports }}>
           <ReportLayer reports={reports} onSelect={setSelectedReport} />
@@ -267,6 +312,16 @@ export default function StormMap({ active }: { active: boolean }) {
 
       {/* Bottom: legend and radar timeline. */}
       <div className="pointer-events-none absolute inset-x-3 bottom-3 z-[500] flex flex-col items-start gap-2 pr-12">
+        {showWildfireLegend && (
+          <div className="pointer-events-auto">
+            <WildfireLegend
+              fires={filters.showFires}
+              hotspots={filters.showHotspots}
+              smokeDate={filters.showSmoke ? (smokeData?.date ?? "") : null}
+              land={filters.showLandOwnership}
+            />
+          </div>
+        )}
         {outlookData && outlookData.features.length > 0 && (
           <div className="pointer-events-auto">
             <OutlookLegend data={outlookData} theme={theme} />
@@ -302,6 +357,14 @@ export default function StormMap({ active }: { active: boolean }) {
       {showFilters && <FiltersPanel onClose={() => setShowFilters(false)} />}
       {selectedAlert && <AlertDetail alert={selectedAlert} onClose={() => setSelectedAlert(null)} />}
       {selectedReport && <ReportDetail report={selectedReport} onClose={() => setSelectedReport(null)} />}
+      {selectedFire && (
+        <FireDetail
+          // Show the latest numbers even if the sheet was opened from an older poll.
+          fire={fireData?.incidents.find((f) => f.id === selectedFire.id) ?? selectedFire}
+          perimeter={fireData?.perimeters.find((p) => p.id === selectedFire.id) ?? null}
+          onClose={() => setSelectedFire(null)}
+        />
+      )}
       {selectedStorm && (
         <TropicalDetail
           // Show the latest advisory's numbers even if the sheet was opened from an older poll.

@@ -5,11 +5,14 @@ import { selectedOutlook } from "@/lib/filters";
 import { useFilters } from "@/lib/client-store";
 import type {
   ForecastFrames,
+  Hotspot,
   OutlookData,
   PrecipTypeManifest,
   ReportsData,
+  SmokeData,
   StormAlert,
   TropicalData,
+  WildfireData,
 } from "@/lib/types";
 import { usePoll, type Feed } from "./usePoll";
 
@@ -20,7 +23,7 @@ import { usePoll, type Feed } from "./usePoll";
  * cache serves every browser, and each browser applies its own filters (see
  * `useFilteredData`). Which feeds are polled does depend on settings — no
  * outlook requests while none is selected, no radar while radar is off, no
- * tropical or forecast requests while those are off.
+ * tropical, forecast or wildfire requests while those are off.
  */
 
 const SECOND = 1000;
@@ -34,6 +37,9 @@ interface StormData {
   radar: Feed<{ manifest: PrecipTypeManifest }>;
   tropical: Feed<TropicalData>;
   forecast: Feed<ForecastFrames>;
+  fires: Feed<WildfireData>;
+  hotspots: Feed<{ hotspots: Hotspot[] }>;
+  smoke: Feed<SmokeData>;
   /** Poll every active feed now. */
   refresh: () => void;
 }
@@ -85,9 +91,22 @@ export function StormDataProvider({ children }: { children: ReactNode }) {
     { whenHidden: false, refreshToken },
   );
 
+  const fires = usePoll<WildfireData>(filters.showFires ? "/api/fires" : null, 5 * MINUTE, {
+    whenHidden: false,
+    refreshToken,
+  });
+  const hotspots = usePoll<{ hotspots: Hotspot[] }>(filters.showHotspots ? "/api/hotspots" : null, 15 * MINUTE, {
+    whenHidden: false,
+    refreshToken,
+  });
+  const smoke = usePoll<SmokeData>(filters.showSmoke ? "/api/smoke" : null, 30 * MINUTE, {
+    whenHidden: false,
+    refreshToken,
+  });
+
   const value = useMemo(
-    () => ({ alerts, reports, outlook, radar, tropical, forecast, refresh }),
-    [alerts, reports, outlook, radar, tropical, forecast, refresh],
+    () => ({ alerts, reports, outlook, radar, tropical, forecast, fires, hotspots, smoke, refresh }),
+    [alerts, reports, outlook, radar, tropical, forecast, fires, hotspots, smoke, refresh],
   );
   return <StormDataContext.Provider value={value}>{children}</StormDataContext.Provider>;
 }

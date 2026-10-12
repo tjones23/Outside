@@ -4,7 +4,8 @@ Severe weather at a glance: every live NWS warning, watch and advisory (severe
 storms, tropical, flood, coastal, heat, winter, wind, fire, marine…), hurricane
 and tropical-storm tracks and cones, the last few days of storm reports, SPC
 and WPC outlooks, animated radar and forecast animations — HRRR future radar
-and the NWS seven-day forecast — on one map, plus your saved places, and a
+and the NWS seven-day forecast — wildfires with their perimeters, satellite
+hotspots, smoke and public-land ownership, on one map, plus your saved places, and a
 notification when a new warning covers one of them.
 
 Everything comes from free, keyless public feeds. There are no accounts; your
@@ -40,14 +41,20 @@ Service and Nominatim, both of which ask for one. It defaults to this repo.
 | [NOAA MRMS](https://www.nssl.noaa.gov/projects/mrms/) (`mrms.ncep.noaa.gov`) | Radar, last hour, colored rain or snow; drawn into tiles by this server | 10 min, while radar is on |
 | [Iowa Environmental Mesonet](https://mesonet.agron.iastate.edu/) | HRRR simulated radar, hourly to 18 h, as tiles | 10 min |
 | [NDFD WMS](https://digital.weather.gov/) | NWS 7-day gridded forecast: temperature, feels-like, gusts, rain, rain chance, cloud, snow | 10 min |
+| [NIFC WFIGS](https://data-nifc.opendata.arcgis.com/) | Wildfires not yet out (size, containment, cause) and their mapped perimeters | 5 min (fires), 15 min (perimeters) |
+| [NASA FIRMS](https://firms.modaps.eosdis.nasa.gov/) VIIRS via [Esri Living Atlas](https://livingatlas.arcgis.com/) | Satellite fire hotspots, last 24 h, US and Canada | 15 min, while on |
+| [NOAA HMS](https://www.ospo.noaa.gov/products/land/hms.html) | Smoke plumes by density, today's (UTC) analysis or yesterday's until today's is drawn | 30 min, while on |
+| [BLM Surface Management Agency](https://gbp-blm-egis.hub.arcgis.com/) | Federal, state, local and tribal land ownership, as tiles straight from BLM | — |
 | [Esri Dark Gray Canvas](https://www.esri.com/) | Basemap and labels | — |
 | [Nominatim](https://nominatim.org/) | Place search when saving a location | on submit only |
 
 ## Pages
 
 - **Map** — alerts, hurricanes, reports, shaded damage areas, the selected
-  SPC or WPC outlook (with conditional-intensity hatching), and radar or a
-  forecast animation. Tap anywhere to list every alert there — zone-based
+  SPC or WPC outlook (with conditional-intensity hatching), radar or a
+  forecast animation, and wildfires: each fire sized by acres and colored by
+  containment, its perimeter, and — when switched on — satellite hotspots,
+  smoke and land ownership. Tap anywhere to list every alert there — zone-based
   alerts stack. A banner tells you when you're inside a warning (or a watch
   or advisory), or near recent reports; storm pills fly to each active storm.
 - **Reports** — every report, newest first, or within 50 / 100 / 250 miles of you.
@@ -71,13 +78,16 @@ src/lib/               pure, framework-free, unit-tested
   mrms.ts              MRMS GRIB2 (PNG-packed) → rain/snow radar tiles
   precip-type.ts       radar frame URLs, zooms and colors, for the browser
   damage-areas.ts      reports → clustered, buffered "damage" blobs
+  wildfire.ts          WFIGS fires and perimeters, VIIRS hotspots (ArcGIS GeoJSON)
+  smoke.ts             HMS smoke KML → plumes
+  land.ts              BLM land-ownership tile URL and legend
   filters.ts           per-browser filters and what passes them
   nearby.ts            "near me" and saved-place status
   notifications.ts     which new warnings deserve a notification
   client-store.ts      filters, places, settings — localStorage, per browser
   sources/upstream.ts  every upstream request (uncached, used by scripts too)
   sources/cached.ts    the same behind `use cache` + named cacheLife profiles
-src/app/api/*          alerts, reports, outlook, radar, tropical, forecast, geocode — polled by the page
+src/app/api/*          alerts, reports, outlook, radar, tropical, forecast, fires, hotspots, smoke, geocode — polled by the page
 src/components/        UI; the map is hosted in the root layout (see MapHost)
 scripts/               launchers' shared shell, lid-hold registry, source check
 ```
@@ -184,6 +194,16 @@ from the terminal — works exactly as described in WhatsGood's README.
 - **Forecast animations load frame by frame**, nearest-to-now first, to go easy
   on IEM's and NWS's servers; HRRR steps hourly rather than every 15 minutes
   for the same reason.
+- **Wildfire data trails the fire line.** A new fire reaches WFIGS only once
+  dispatch enters it, and most perimeters are remapped once a day after night
+  infrared flights. Containment is unreported for many new starts, which are
+  drawn with the active fires. There are no evacuation zones: no national
+  public feed of them exists.
+- **Hotspots come from polar-orbiting satellites** that pass a few times a
+  day, so a fire can burn for hours before its first one appears; a hotspot is
+  any hot 375 m pixel — industrial flares and farm burns included.
+- **Smoke is the whole air column**, as seen from above — not a measure of
+  air quality at the ground.
 - **Reports are preliminary.** SPC's feed is unfiltered first reports and can
   contain duplicates of the same event.
 - **Public hosting shares one Mac's bandwidth.** Each open map tab pulls
@@ -196,5 +216,8 @@ from the terminal — works exactly as described in WhatsGood's README.
 Alerts and forecast grids: National Weather Service. Tropical: National
 Hurricane Center. Reports and convective outlooks: NOAA Storm Prediction
 Center. Excessive rainfall: NOAA Weather Prediction Center. Radar: NOAA MRMS.
-Future radar: NOAA HRRR via the Iowa Environmental Mesonet. Map tiles: Esri, HERE, Garmin, © OpenStreetMap
+Future radar: NOAA HRRR via the Iowa Environmental Mesonet. Wildfires and
+perimeters: NIFC WFIGS. Hotspots: NASA FIRMS (VIIRS) via Esri Living Atlas.
+Smoke: NOAA NESDIS Hazard Mapping System. Land ownership: Bureau of Land
+Management. Map tiles: Esri, HERE, Garmin, © OpenStreetMap
 contributors. Place search: Nominatim, © OpenStreetMap contributors.

@@ -282,6 +282,24 @@ input[type="range"] {
   text-shadow: 0 0 3px rgb(0 0 0 / 0.9);
 }
 
+/*
+ * Where a wildfire started: a dot colored by containment and sized by acres.
+ * Fires under half contained get a glow, so the ones still running stand out.
+ */
+.fire-point {
+  width: 100%;
+  height: 100%;
+  border-radius: 9999px;
+  border: 1.5px solid rgb(0 0 0 / 0.75);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.5);
+}
+
+.fire-point-active {
+  box-shadow:
+    0 0 0 2px rgb(255 69 58 / 0.3),
+    0 0 5px 1px rgb(255 69 58 / 0.45);
+}
+
 @keyframes you-pulse {
   to {
     box-shadow: 0 0 0 14px rgb(59 130 246 / 0);

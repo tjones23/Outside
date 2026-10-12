@@ -1,25 +1,35 @@
 import { cacheLife } from "next/cache";
 import { buildNdfdFrames, forecastProduct, pickNdfdTimes } from "../forecast";
 import { convectiveDate } from "../reports";
+import { utcDate } from "../smoke";
 import type {
   ForecastFrames,
   ForecastProductId,
   GeocodeResult,
+  Hotspot,
   OutlookData,
   OutlookProduct,
   ReportsData,
   Ring,
+  SmokeData,
   StormAlert,
   StormReport,
   TropicalData,
+  WildfireData,
+  WildfireIncident,
+  WildfirePerimeter,
 } from "../types";
 import {
   fetchAlertFeed,
+  fetchFireIncidents,
+  fetchFirePerimeters,
   fetchGeocode,
+  fetchHotspots,
   fetchHrrrFrames,
   fetchNdfdTimes,
   fetchOutlook,
   fetchReportDay,
+  fetchSmokeDay,
   fetchTropical,
   fetchWwaOutlines,
   fetchZoneOutline,
@@ -109,6 +119,84 @@ export async function getTropical(): Promise<Fetched<TropicalData>> {
   } catch (error) {
     return failure(error);
   }
+}
+
+async function getFireIncidents(): Promise<Fetched<WildfireIncident[]>> {
+  "use cache";
+  try {
+    const value = await fetchFireIncidents();
+    cacheLife("fires");
+    return { ok: true, value };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+async function getFirePerimeters(): Promise<Fetched<WildfirePerimeter[]>> {
+  "use cache";
+  try {
+    const value = await fetchFirePerimeters();
+    cacheLife("perimeters");
+    return { ok: true, value };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+/**
+ * Wildfires with their perimeters. Not itself cached: incidents change
+ * through the day, perimeters mostly once a day after the night's mapping
+ * flights, so each has its own entry. Only incidents failing is an error.
+ */
+export async function getFires(): Promise<Fetched<WildfireData>> {
+  const [incidents, perimeters] = await Promise.all([getFireIncidents(), getFirePerimeters()]);
+  if (!incidents.ok) return incidents;
+  if (!perimeters.ok) console.error(`[outside] fire perimeters failed: ${perimeters.error}`);
+  return {
+    ok: true,
+    value: {
+      incidents: incidents.value,
+      perimeters: perimeters.ok ? perimeters.value : [],
+      perimetersMissing: !perimeters.ok,
+    },
+  };
+}
+
+export async function getHotspots(): Promise<Fetched<Hotspot[]>> {
+  "use cache";
+  try {
+    const value = await fetchHotspots();
+    cacheLife("hotspots");
+    return { ok: true, value };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+/** One UTC day's smoke; `date` is the key, so each day is its own entry. */
+async function getSmokeDay(date: string): Promise<Fetched<SmokeData | null>> {
+  "use cache";
+  try {
+    const value = await fetchSmokeDay(date);
+    cacheLife("smoke");
+    return { ok: true, value };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+/**
+ * Today's smoke, or yesterday's until today's has plumes. Not itself
+ * cached: which day is "today" must be read outside a cache scope.
+ */
+export async function getSmoke(now: Date): Promise<Fetched<SmokeData>> {
+  const todayDate = utcDate(now);
+  const today = await getSmokeDay(todayDate);
+  if (!today.ok) return today;
+  if (today.value && today.value.plumes.length > 0) return { ok: true, value: today.value };
+  const yesterday = await getSmokeDay(utcDate(now, 1));
+  if (yesterday.ok && yesterday.value) return { ok: true, value: yesterday.value };
+  return { ok: true, value: today.value ?? { date: todayDate, plumes: [] } };
 }
 
 async function getHrrrFrames(): Promise<Fetched<ForecastFrames>> {
