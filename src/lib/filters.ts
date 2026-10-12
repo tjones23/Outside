@@ -32,10 +32,11 @@ export const DEFAULT_FILTERS: FilterSettings = {
   showTropical: true,
   forecastProduct: null,
   showFires: true,
-  // Hotspots, smoke and land ownership each cover a lot of map; on request.
+  // Hotspots, smoke, land ownership and air quality each cover a lot of map; on request.
   showHotspots: false,
   showSmoke: false,
   showLandOwnership: false,
+  showAirQuality: false,
 };
 
 /** Same options as the mobile filter screen. */
@@ -95,6 +96,7 @@ export function normalizeFilters(input: unknown): FilterSettings {
     showHotspots: bool("showHotspots"),
     showSmoke: bool("showSmoke"),
     showLandOwnership: bool("showLandOwnership"),
+    showAirQuality: bool("showAirQuality"),
   };
 }
 

@@ -126,6 +126,7 @@ describe("normalizeFilters", () => {
       "showHotspots",
       "showSmoke",
       "showLandOwnership",
+      "showAirQuality",
     ]) {
       delete old[k];
     }

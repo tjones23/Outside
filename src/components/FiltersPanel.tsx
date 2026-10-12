@@ -151,6 +151,14 @@ export function FiltersPanel({ onClose }: { onClose: () => void }) {
         onChange={(v) => update({ showLandOwnership: v })}
       />
 
+      <SectionTitle>Air quality</SectionTitle>
+      <Switch
+        label="Air quality monitors"
+        description="The latest hourly AQI from EPA AirNow's monitors in the US and Canada, colored the EPA way. Readings are an hour or two old."
+        checked={f.showAirQuality}
+        onChange={(v) => update({ showAirQuality: v })}
+      />
+
       <SectionTitle>Radar &amp; forecast</SectionTitle>
       <div className="flex flex-wrap gap-2">
         <Chip on={imagery === "off"} onClick={() => selectImagery("off")}>

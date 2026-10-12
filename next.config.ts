@@ -43,6 +43,8 @@ const nextConfig: NextConfig = {
     hotspots: { stale: MINUTE, revalidate: 15 * MINUTE, expire: 2 * HOUR },
     // HMS analysts add smoke plumes through the day as GOES imagery comes in.
     smoke: { stale: MINUTE, revalidate: 30 * MINUTE, expire: 6 * HOUR },
+    // AirNow republishes recent hours as late readings arrive.
+    airQuality: { stale: MINUTE, revalidate: 15 * MINUTE, expire: 2 * HOUR },
     // A failed upstream request, remembered briefly so an outage costs one
     // upstream request per feed every half minute, not one per poll.
     failure: { stale: 30, revalidate: 30, expire: MINUTE },

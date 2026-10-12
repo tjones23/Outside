@@ -1,3 +1,4 @@
+import { airNowHour, airNowUrl, hourIso, parseAirNow } from "../air-quality";
 import {
   NWS_ALERTS_URL,
   NWS_WWA_OUTLINES_URL,
@@ -43,6 +44,8 @@ import {
   type StormLayer,
 } from "../tropical";
 import type {
+  AirQualityData,
+  AirQualitySite,
   ForecastFrames,
   ForecastProductId,
   GeocodeResult,
@@ -324,6 +327,32 @@ export async function fetchSmoke(now: Date): Promise<SmokeData> {
   if (today && today.plumes.length > 0) return today;
   const yesterday = await fetchSmokeDay(utcDate(now, 1));
   return yesterday ?? today ?? { date: utcDate(now), plumes: [] };
+}
+
+// --- Air quality --------------------------------------------------------------
+
+/** One hour's AirNow observations, or null when that hour isn't published yet (404). */
+export async function fetchAirNowHour(hour: string): Promise<AirQualitySite[] | null> {
+  try {
+    const response = await get(airNowUrl(hour), "text/plain, text/csv, */*", 30_000);
+    return parseAirNow(await response.text(), hour);
+  } catch (error) {
+    if (error instanceof UpstreamError && error.status === 404) return null;
+    throw error;
+  }
+}
+
+/** How far back to look for the newest hour: files land one to two hours late. */
+export const AIRNOW_LOOKBACK_HOURS = 4;
+
+/** The newest published hour of AirNow observations. Uncached, for `check:sources`. */
+export async function fetchAirQuality(now: Date): Promise<AirQualityData> {
+  for (let ago = 1; ago <= AIRNOW_LOOKBACK_HOURS; ago++) {
+    const hour = airNowHour(now, ago);
+    const sites = await fetchAirNowHour(hour);
+    if (sites) return { hour: hourIso(hour), sites };
+  }
+  throw new Error(`AirNow has no observations for the last ${AIRNOW_LOOKBACK_HOURS} hours`);
 }
 
 // --- Forecast animations -----------------------------------------------------

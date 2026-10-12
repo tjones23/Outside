@@ -2,6 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import { LAND_AGENCIES } from "@/lib/land";
+import { Flame } from "./fires";
 import { SMOKE_DENSITIES } from "@/lib/smoke";
 import { CONTAINMENT_BANDS, HOTSPOT_AGES } from "@/lib/wildfire";
 
@@ -45,7 +46,7 @@ export function WildfireLegend({
             <Group>
               {CONTAINMENT_BANDS.map((b) => (
                 <Item key={b.band} label={b.label}>
-                  <span className="h-2.5 w-2.5 rounded-full border border-black/70" style={{ background: b.color }} />
+                  <Flame color={b.color} className="h-3.5 w-3.5" />
                 </Item>
               ))}
             </Group>
@@ -95,7 +96,7 @@ function Group({ heading, columns, children }: { heading?: string; columns?: boo
 function Item({ label, children }: { label: string; children: ReactNode }) {
   return (
     <li className="flex items-center gap-2 text-muted">
-      <span aria-hidden="true" className="flex w-3 shrink-0 justify-center">
+      <span aria-hidden="true" className="flex w-3.5 shrink-0 justify-center">
         {children}
       </span>
       {label}

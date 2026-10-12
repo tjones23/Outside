@@ -24,6 +24,8 @@ import { useTheme } from "../providers/useTheme";
 import { BorderLayer } from "./borders";
 import { FireLayer, HotspotLayer, PerimeterLayer, SmokeLayer } from "./fires";
 import { ForecastLegend } from "./ForecastLegend";
+import { AirQualityLayer } from "./air";
+import { AirQualityLegend } from "./AirQualityLegend";
 import { AlertLayer, AlertPickPopup, DamageLayer, OutlookLayer, ReportLayer, UserLocationMarker } from "./layers";
 import { OutlookLegend } from "./OutlookLegend";
 import { PrecipTypeLegend } from "./PrecipTypeLegend";
@@ -52,6 +54,7 @@ const PANES = {
   borders: 418,
   labels: 420,
   tropical: 423,
+  air: 424,
   hotspots: 426,
   fires: 428,
   reports: 430,
@@ -101,6 +104,7 @@ export default function StormMap({ active }: { active: boolean }) {
     fires,
     hotspots,
     smoke,
+    air,
     alerts: alertFeed,
     reports: reportFeed,
   } = useStormData();
@@ -135,6 +139,7 @@ export default function StormMap({ active }: { active: boolean }) {
   // Hotspot ages are measured from the poll that brought them, so a redraw never recolors them.
   const hotspotsAt = hotspots.updatedAt ?? 0;
   const smokeData = filters.showSmoke ? smoke.data : null;
+  const airData = filters.showAirQuality ? air.data : null;
   const showWildfireLegend = filters.showFires || filters.showHotspots || filters.showSmoke || filters.showLandOwnership;
 
   // Every alert under a tap, most important first — the polygons stack.
@@ -160,6 +165,7 @@ export default function StormMap({ active }: { active: boolean }) {
     fires.error && "wildfires",
     hotspots.error && "hotspots",
     smoke.error && "smoke",
+    air.error && "air quality",
   ].filter(Boolean);
 
   const locate = async () => {
@@ -249,6 +255,9 @@ export default function StormMap({ active }: { active: boolean }) {
         <Pane name="tropical" style={{ zIndex: PANES.tropical }}>
           {tropicalData && <TropicalTracks data={tropicalData} theme={theme} onSelect={setSelectedStorm} />}
         </Pane>
+        <Pane name="air" style={{ zIndex: PANES.air }}>
+          {airData && <AirQualityLayer sites={airData.sites} />}
+        </Pane>
         <Pane name="hotspots" style={{ zIndex: PANES.hotspots }}>
           {hotspotData && <HotspotLayer hotspots={hotspotData} now={hotspotsAt} />}
         </Pane>
@@ -320,6 +329,11 @@ export default function StormMap({ active }: { active: boolean }) {
               smokeDate={filters.showSmoke ? (smokeData?.date ?? "") : null}
               land={filters.showLandOwnership}
             />
+          </div>
+        )}
+        {filters.showAirQuality && (
+          <div className="pointer-events-auto">
+            <AirQualityLegend hour={airData?.hour ?? null} />
           </div>
         )}
         {outlookData && outlookData.features.length > 0 && (

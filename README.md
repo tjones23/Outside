@@ -44,6 +44,7 @@ Service and Nominatim, both of which ask for one. It defaults to this repo.
 | [NIFC WFIGS](https://data-nifc.opendata.arcgis.com/) | Wildfires not yet out (size, containment, cause) and their mapped perimeters | 5 min (fires), 15 min (perimeters) |
 | [NASA FIRMS](https://firms.modaps.eosdis.nasa.gov/) VIIRS via [Esri Living Atlas](https://livingatlas.arcgis.com/) | Satellite fire hotspots, last 24 h, US and Canada | 15 min, while on |
 | [NOAA HMS](https://www.ospo.noaa.gov/products/land/hms.html) | Smoke plumes by density, today's (UTC) analysis or yesterday's until today's is drawn | 30 min, while on |
+| [EPA AirNow](https://www.airnow.gov/) hourly files (`files.airnowtech.org`) | Each monitor's AQI (worst of PM2.5, ozone, PM10, NO₂), newest published hour, US and Canada | 15 min, while on |
 | [BLM Surface Management Agency](https://gbp-blm-egis.hub.arcgis.com/) | Federal, state, local and tribal land ownership, as tiles straight from BLM | — |
 | [Esri Dark Gray Canvas](https://www.esri.com/) | Basemap and labels | — |
 | [Nominatim](https://nominatim.org/) | Place search when saving a location | on submit only |
@@ -54,7 +55,7 @@ Service and Nominatim, both of which ask for one. It defaults to this repo.
   SPC or WPC outlook (with conditional-intensity hatching), radar or a
   forecast animation, and wildfires: each fire sized by acres and colored by
   containment, its perimeter, and — when switched on — satellite hotspots,
-  smoke and land ownership. Tap anywhere to list every alert there — zone-based
+  smoke, land ownership and air-quality monitors. Tap anywhere to list every alert there — zone-based
   alerts stack. A banner tells you when you're inside a warning (or a watch
   or advisory), or near recent reports; storm pills fly to each active storm.
 - **Reports** — every report, newest first, or within 50 / 100 / 250 miles of you.
@@ -81,13 +82,14 @@ src/lib/               pure, framework-free, unit-tested
   wildfire.ts          WFIGS fires and perimeters, VIIRS hotspots (ArcGIS GeoJSON)
   smoke.ts             HMS smoke KML → plumes
   land.ts              BLM land-ownership tile URL and legend
+  air-quality.ts       AirNow hourly CSV → monitors with AQI
   filters.ts           per-browser filters and what passes them
   nearby.ts            "near me" and saved-place status
   notifications.ts     which new warnings deserve a notification
   client-store.ts      filters, places, settings — localStorage, per browser
   sources/upstream.ts  every upstream request (uncached, used by scripts too)
   sources/cached.ts    the same behind `use cache` + named cacheLife profiles
-src/app/api/*          alerts, reports, outlook, radar, tropical, forecast, fires, hotspots, smoke, geocode — polled by the page
+src/app/api/*          alerts, reports, outlook, radar, tropical, forecast, fires, hotspots, smoke, air, geocode — polled by the page
 src/components/        UI; the map is hosted in the root layout (see MapHost)
 scripts/               launchers' shared shell, lid-hold registry, source check
 ```
@@ -203,7 +205,8 @@ from the terminal — works exactly as described in WhatsGood's README.
   day, so a fire can burn for hours before its first one appears; a hotspot is
   any hot 375 m pixel — industrial flares and farm burns included.
 - **Smoke is the whole air column**, as seen from above — not a measure of
-  air quality at the ground.
+  air quality at the ground. The AirNow monitors are that measure, but only
+  where there's a monitor, and an hour or two behind.
 - **Reports are preliminary.** SPC's feed is unfiltered first reports and can
   contain duplicates of the same event.
 - **Public hosting shares one Mac's bandwidth.** Each open map tab pulls
@@ -219,5 +222,5 @@ Center. Excessive rainfall: NOAA Weather Prediction Center. Radar: NOAA MRMS.
 Future radar: NOAA HRRR via the Iowa Environmental Mesonet. Wildfires and
 perimeters: NIFC WFIGS. Hotspots: NASA FIRMS (VIIRS) via Esri Living Atlas.
 Smoke: NOAA NESDIS Hazard Mapping System. Land ownership: Bureau of Land
-Management. Map tiles: Esri, HERE, Garmin, © OpenStreetMap
+Management. Air quality: EPA AirNow. Map tiles: Esri, HERE, Garmin, © OpenStreetMap
 contributors. Place search: Nominatim, © OpenStreetMap contributors.

@@ -204,6 +204,8 @@ export interface FilterSettings {
   showSmoke: boolean;
   /** BLM's federal, state and tribal land ownership tiles. */
   showLandOwnership: boolean;
+  /** EPA AirNow monitors, colored by AQI. */
+  showAirQuality: boolean;
 }
 
 export interface NotificationSettings {
@@ -426,4 +428,34 @@ export interface SmokeData {
   /** "YYYY-MM-DD", UTC — today's, or yesterday's until today's is published. */
   date: string;
   plumes: SmokePlume[];
+}
+
+// --- Air quality --------------------------------------------------------------
+
+export type AirPollutant = "pm25" | "ozone" | "pm10" | "no2";
+
+/** One air-quality monitor's latest hour, from EPA AirNow. */
+export interface AirQualitySite {
+  /** AirNow's AQS site id. */
+  id: string;
+  name: string;
+  coord: LatLng;
+  /** The worst pollutant's AQI. */
+  aqi: number;
+  pollutant: AirPollutant;
+  /** AQI for each pollutant the monitor reported. */
+  byPollutant: Partial<Record<AirPollutant, number>>;
+  /** PM2.5 concentration, µg/m³, when measured (never negative). */
+  pm25: number | null;
+  /** The agency that runs the monitor. */
+  agency: string | null;
+  /** The hour the reading is for, ISO 8601. */
+  observed: string;
+}
+
+/** The `/api/air` payload. */
+export interface AirQualityData {
+  /** The hour shown, ISO 8601 (UTC). */
+  hour: string;
+  sites: AirQualitySite[];
 }

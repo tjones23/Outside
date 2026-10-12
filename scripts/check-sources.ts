@@ -9,6 +9,7 @@
  */
 import { gunzipSync } from "node:zlib";
 import {
+  fetchAirQuality,
   fetchAlertFeed,
   fetchAlerts,
   fetchFireIncidents,
@@ -137,6 +138,13 @@ async function main(): Promise<void> {
     const { date, plumes } = await fetchSmoke(now);
     const heavy = plumes.filter((p) => p.density === "heavy").length;
     return `${plumes.length} plumes for ${date} (${heavy} heavy)`;
+  });
+
+  await check("EPA AirNow hourly AQI", async () => {
+    const { hour, sites } = await fetchAirQuality(now);
+    const worst = sites.reduce((max, s) => Math.max(max, s.aqi), 0);
+    const age = Math.round((Date.now() - Date.parse(hour)) / 60_000);
+    return `${sites.length} monitors for ${hour.slice(11, 16)}Z (${age} min ago), worst AQI ${worst}`;
   });
 
   await check("BLM land ownership tiles", async () => {

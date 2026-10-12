@@ -1,8 +1,11 @@
 import { cacheLife } from "next/cache";
+import { airNowHour, hourIso } from "../air-quality";
 import { buildNdfdFrames, forecastProduct, pickNdfdTimes } from "../forecast";
 import { convectiveDate } from "../reports";
 import { utcDate } from "../smoke";
 import type {
+  AirQualityData,
+  AirQualitySite,
   ForecastFrames,
   ForecastProductId,
   GeocodeResult,
@@ -20,6 +23,8 @@ import type {
   WildfirePerimeter,
 } from "../types";
 import {
+  AIRNOW_LOOKBACK_HOURS,
+  fetchAirNowHour,
   fetchAlertFeed,
   fetchFireIncidents,
   fetchFirePerimeters,
@@ -197,6 +202,36 @@ export async function getSmoke(now: Date): Promise<Fetched<SmokeData>> {
   const yesterday = await getSmokeDay(utcDate(now, 1));
   if (yesterday.ok && yesterday.value) return { ok: true, value: yesterday.value };
   return { ok: true, value: today.value ?? { date: todayDate, plumes: [] } };
+}
+
+/**
+ * One hour's AirNow file; `hour` is the key. An hour that isn't published
+ * yet is remembered only briefly, so it's picked up soon after it lands.
+ */
+async function getAirNowHour(hour: string): Promise<Fetched<AirQualitySite[] | null>> {
+  "use cache";
+  try {
+    const value = await fetchAirNowHour(hour);
+    if (value) cacheLife("airQuality");
+    else cacheLife("failure");
+    return { ok: true, value };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+/**
+ * The newest published hour of air quality. Not itself cached: which hours
+ * are recent must be read outside a cache scope.
+ */
+export async function getAirQuality(now: Date): Promise<Fetched<AirQualityData>> {
+  for (let ago = 1; ago <= AIRNOW_LOOKBACK_HOURS; ago++) {
+    const hour = airNowHour(now, ago);
+    const result = await getAirNowHour(hour);
+    if (!result.ok) return result;
+    if (result.value) return { ok: true, value: { hour: hourIso(hour), sites: result.value } };
+  }
+  return { ok: false, error: `AirNow has no observations for the last ${AIRNOW_LOOKBACK_HOURS} hours` };
 }
 
 async function getHrrrFrames(): Promise<Fetched<ForecastFrames>> {

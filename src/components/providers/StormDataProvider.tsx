@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useMemo, useState, type ReactNo
 import { selectedOutlook } from "@/lib/filters";
 import { useFilters } from "@/lib/client-store";
 import type {
+  AirQualityData,
   ForecastFrames,
   Hotspot,
   OutlookData,
@@ -23,7 +24,7 @@ import { usePoll, type Feed } from "./usePoll";
  * cache serves every browser, and each browser applies its own filters (see
  * `useFilteredData`). Which feeds are polled does depend on settings — no
  * outlook requests while none is selected, no radar while radar is off, no
- * tropical, forecast or wildfire requests while those are off.
+ * tropical, forecast, wildfire or air-quality requests while those are off.
  */
 
 const SECOND = 1000;
@@ -40,6 +41,7 @@ interface StormData {
   fires: Feed<WildfireData>;
   hotspots: Feed<{ hotspots: Hotspot[] }>;
   smoke: Feed<SmokeData>;
+  air: Feed<AirQualityData>;
   /** Poll every active feed now. */
   refresh: () => void;
 }
@@ -104,9 +106,14 @@ export function StormDataProvider({ children }: { children: ReactNode }) {
     refreshToken,
   });
 
+  const air = usePoll<AirQualityData>(filters.showAirQuality ? "/api/air" : null, 15 * MINUTE, {
+    whenHidden: false,
+    refreshToken,
+  });
+
   const value = useMemo(
-    () => ({ alerts, reports, outlook, radar, tropical, forecast, fires, hotspots, smoke, refresh }),
-    [alerts, reports, outlook, radar, tropical, forecast, fires, hotspots, smoke, refresh],
+    () => ({ alerts, reports, outlook, radar, tropical, forecast, fires, hotspots, smoke, air, refresh }),
+    [alerts, reports, outlook, radar, tropical, forecast, fires, hotspots, smoke, air, refresh],
   );
   return <StormDataContext.Provider value={value}>{children}</StormDataContext.Provider>;
 }

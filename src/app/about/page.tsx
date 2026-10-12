@@ -60,6 +60,11 @@ const SOURCES = [
     what: "Smoke plumes traced by NOAA analysts on GOES satellite imagery, by density, through the day. Shows yesterday's analysis until today's is drawn. This is smoke anywhere in the air column, not necessarily at the ground.",
   },
   {
+    name: "EPA AirNow",
+    href: "https://www.airnow.gov/",
+    what: "The hourly Air Quality Index from EPA, state, local and tribal monitors in the US, and Canada's, colored by EPA category. Each monitor shows its worst pollutant — usually PM2.5 near smoke, ozone on hot afternoons. Readings arrive an hour or two after the hour.",
+  },
+  {
     name: "Bureau of Land Management — Surface Management Agency",
     href: "https://gbp-blm-egis.hub.arcgis.com/",
     what: "Who manages public land: BLM, Forest Service, Park Service, Fish and Wildlife, Defense, tribal, state and local. Private land is left clear.",
