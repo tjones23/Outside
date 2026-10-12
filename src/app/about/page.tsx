@@ -65,11 +65,6 @@ const SOURCES = [
     what: "The hourly Air Quality Index from EPA, state, local and tribal monitors in the US, and Canada's, colored by EPA category. Each monitor shows its worst pollutant — usually PM2.5 near smoke, ozone on hot afternoons. Readings arrive an hour or two after the hour.",
   },
   {
-    name: "Bureau of Land Management — Surface Management Agency",
-    href: "https://gbp-blm-egis.hub.arcgis.com/",
-    what: "Who manages public land: BLM, Forest Service, Park Service, Fish and Wildlife, Defense, tribal, state and local. Private land is left clear.",
-  },
-  {
     name: "Esri Gray Canvas",
     href: "https://www.esri.com/",
     what: "The map and its labels, in Dark Gray or Light Gray to match the theme. Esri, HERE, Garmin, © OpenStreetMap contributors.",

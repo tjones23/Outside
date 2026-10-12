@@ -25,7 +25,6 @@ import {
   fetchWwaOutlines,
   userAgent,
 } from "../src/lib/sources/upstream";
-import { LAND_TILE_URL } from "../src/lib/land";
 import { outlookProduct } from "../src/lib/outlook";
 import { HOTSPOT_MAX_HOURS } from "../src/lib/wildfire";
 import { convectiveDate } from "../src/lib/reports";
@@ -145,12 +144,6 @@ async function main(): Promise<void> {
     const worst = sites.reduce((max, s) => Math.max(max, s.aqi), 0);
     const age = Math.round((Date.now() - Date.parse(hour)) / 60_000);
     return `${sites.length} monitors for ${hour.slice(11, 16)}Z (${age} min ago), worst AQI ${worst}`;
-  });
-
-  await check("BLM land ownership tiles", async () => {
-    const status = await tileStatus(LAND_TILE_URL, 7);
-    if (status !== 200) throw new Error(`tile HTTP ${status}`);
-    return "tile 200";
   });
 
   await check("HRRR future radar (IEM)", async () => {

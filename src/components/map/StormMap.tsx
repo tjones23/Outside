@@ -6,7 +6,6 @@ import { MapContainer, Pane, TileLayer, ZoomControl, useMap } from "react-leafle
 import { alertContains, byPriority } from "@/lib/alerts";
 import { forecastProduct } from "@/lib/forecast";
 import { US_BOUNDS } from "@/lib/geo";
-import { LAND_ATTRIBUTION_HTML, LAND_MAX_NATIVE_ZOOM, LAND_OPACITY, LAND_TILE_URL } from "@/lib/land";
 import {
   PRECIP_TYPE_ATTRIBUTION,
   PRECIP_TYPE_ATTRIBUTION_HTML,
@@ -140,7 +139,7 @@ export default function StormMap({ active }: { active: boolean }) {
   const hotspotsAt = hotspots.updatedAt ?? 0;
   const smokeData = filters.showSmoke ? smoke.data : null;
   const airData = filters.showAirQuality ? air.data : null;
-  const showWildfireLegend = filters.showFires || filters.showHotspots || filters.showSmoke || filters.showLandOwnership;
+  const showWildfireLegend = filters.showFires || filters.showHotspots || filters.showSmoke;
 
   // Every alert under a tap, most important first — the polygons stack.
   const pickAt = useCallback(
@@ -191,17 +190,6 @@ export default function StormMap({ active }: { active: boolean }) {
           zIndex={1}
           {...STEADY_TILES}
         />
-        {filters.showLandOwnership && (
-          <TileLayer
-            url={LAND_TILE_URL}
-            attribution={LAND_ATTRIBUTION_HTML}
-            opacity={LAND_OPACITY}
-            maxNativeZoom={LAND_MAX_NATIVE_ZOOM}
-            maxZoom={19}
-            zIndex={2}
-            {...STEADY_TILES}
-          />
-        )}
         {radarFrames.length > 0 && (
           <FrameLayer
             playback={radarPlayback}
@@ -327,7 +315,6 @@ export default function StormMap({ active }: { active: boolean }) {
               fires={filters.showFires}
               hotspots={filters.showHotspots}
               smokeDate={filters.showSmoke ? (smokeData?.date ?? "") : null}
-              land={filters.showLandOwnership}
             />
           </div>
         )}

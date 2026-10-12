@@ -202,8 +202,6 @@ export interface FilterSettings {
   showHotspots: boolean;
   /** NOAA HMS smoke plumes. */
   showSmoke: boolean;
-  /** BLM's federal, state and tribal land ownership tiles. */
-  showLandOwnership: boolean;
   /** EPA AirNow monitors, colored by AQI. */
   showAirQuality: boolean;
 }

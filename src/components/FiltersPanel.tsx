@@ -144,12 +144,6 @@ export function FiltersPanel({ onClose }: { onClose: () => void }) {
         checked={f.showSmoke}
         onChange={(v) => update({ showSmoke: v })}
       />
-      <Switch
-        label="Land ownership"
-        description="Federal, state, local and tribal land, by agency, from the Bureau of Land Management. Private land is left clear."
-        checked={f.showLandOwnership}
-        onChange={(v) => update({ showLandOwnership: v })}
-      />
 
       <SectionTitle>Air quality</SectionTitle>
       <Switch

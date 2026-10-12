@@ -5,7 +5,7 @@ storms, tropical, flood, coastal, heat, winter, wind, fire, marine…), hurrican
 and tropical-storm tracks and cones, the last few days of storm reports, SPC
 and WPC outlooks, animated radar and forecast animations — HRRR future radar
 and the NWS seven-day forecast — wildfires with their perimeters, satellite
-hotspots, smoke and public-land ownership, on one map, plus your saved places, and a
+hotspots, smoke and air quality, on one map, plus your saved places, and a
 notification when a new warning covers one of them.
 
 Everything comes from free, keyless public feeds. There are no accounts; your
@@ -45,7 +45,6 @@ Service and Nominatim, both of which ask for one. It defaults to this repo.
 | [NASA FIRMS](https://firms.modaps.eosdis.nasa.gov/) VIIRS via [Esri Living Atlas](https://livingatlas.arcgis.com/) | Satellite fire hotspots, last 24 h, US and Canada | 15 min, while on |
 | [NOAA HMS](https://www.ospo.noaa.gov/products/land/hms.html) | Smoke plumes by density, today's (UTC) analysis or yesterday's until today's is drawn | 30 min, while on |
 | [EPA AirNow](https://www.airnow.gov/) hourly files (`files.airnowtech.org`) | Each monitor's AQI (worst of PM2.5, ozone, PM10, NO₂), newest published hour, US and Canada | 15 min, while on |
-| [BLM Surface Management Agency](https://gbp-blm-egis.hub.arcgis.com/) | Federal, state, local and tribal land ownership, as tiles straight from BLM | — |
 | [Esri Dark Gray Canvas](https://www.esri.com/) | Basemap and labels | — |
 | [Nominatim](https://nominatim.org/) | Place search when saving a location | on submit only |
 
@@ -55,7 +54,7 @@ Service and Nominatim, both of which ask for one. It defaults to this repo.
   SPC or WPC outlook (with conditional-intensity hatching), radar or a
   forecast animation, and wildfires: each fire sized by acres and colored by
   containment, its perimeter, and — when switched on — satellite hotspots,
-  smoke, land ownership and air-quality monitors. Tap anywhere to list every alert there — zone-based
+  smoke and air-quality monitors. Tap anywhere to list every alert there — zone-based
   alerts stack. A banner tells you when you're inside a warning (or a watch
   or advisory), or near recent reports; storm pills fly to each active storm.
 - **Reports** — every report, newest first, or within 50 / 100 / 250 miles of you.
@@ -81,7 +80,6 @@ src/lib/               pure, framework-free, unit-tested
   damage-areas.ts      reports → clustered, buffered "damage" blobs
   wildfire.ts          WFIGS fires and perimeters, VIIRS hotspots (ArcGIS GeoJSON)
   smoke.ts             HMS smoke KML → plumes
-  land.ts              BLM land-ownership tile URL and legend
   air-quality.ts       AirNow hourly CSV → monitors with AQI
   filters.ts           per-browser filters and what passes them
   nearby.ts            "near me" and saved-place status
@@ -221,6 +219,5 @@ Hurricane Center. Reports and convective outlooks: NOAA Storm Prediction
 Center. Excessive rainfall: NOAA Weather Prediction Center. Radar: NOAA MRMS.
 Future radar: NOAA HRRR via the Iowa Environmental Mesonet. Wildfires and
 perimeters: NIFC WFIGS. Hotspots: NASA FIRMS (VIIRS) via Esri Living Atlas.
-Smoke: NOAA NESDIS Hazard Mapping System. Land ownership: Bureau of Land
-Management. Air quality: EPA AirNow. Map tiles: Esri, HERE, Garmin, © OpenStreetMap
+Smoke: NOAA NESDIS Hazard Mapping System. Air quality: EPA AirNow. Map tiles: Esri, HERE, Garmin, © OpenStreetMap
 contributors. Place search: Nominatim, © OpenStreetMap contributors.
