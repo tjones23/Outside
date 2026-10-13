@@ -11,6 +11,7 @@ import { AddLocationForm } from "./AddLocationForm";
 import { AlertDetail, ReportDetail } from "./Details";
 import { PageHeader } from "./PageHeader";
 import { PlaceForecast } from "./PlaceForecast";
+import { SnowBlend } from "./SnowBlend";
 import { useFilteredData } from "./providers/useFilteredData";
 import { Sheet } from "./ui/Sheet";
 import { Button, EmptyState, SectionTitle } from "./ui/controls";
@@ -28,7 +29,7 @@ export function SavedLocations() {
     <>
       <PageHeader
         title="Places"
-        subtitle="Saved in this browser only. Open one for its 7-day forecast. Used for the “saved place” notification."
+        subtitle="Saved in this browser only. Open one for its 7-day forecast and 15-day snow blend. Used for the “saved place” notification."
         actions={
           <Button variant="primary" onClick={() => setAdding(true)}>
             Add place
@@ -162,6 +163,9 @@ function LocationDetail({
 
       <SectionTitle>7-day forecast</SectionTitle>
       <PlaceForecast lat={location.lat} lon={location.lon} />
+
+      <SectionTitle>15-day snow · model blend</SectionTitle>
+      <SnowBlend lat={location.lat} lon={location.lon} />
 
       <SectionTitle>Reports within {NEARBY_RADIUS_MILES} mi</SectionTitle>
       {near.length === 0 ? (

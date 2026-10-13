@@ -1,7 +1,9 @@
 import { cacheLife } from "next/cache";
 import { airNowHour, hourIso } from "../air-quality";
 import { buildNdfdFrames, forecastProduct, pickNdfdTimes } from "../forecast";
+import { BLEND_MODELS, type ModelRun } from "../openmeteo";
 import { buildDays, type GridAmounts, type PeriodForecast, type PointInfo } from "../point-forecast";
+import { buildBlend } from "../snow-blend";
 import { convectiveDate } from "../reports";
 import { utcDate } from "../smoke";
 import type {
@@ -15,6 +17,7 @@ import type {
   OutlookProduct,
   PointForecast,
   ReportsData,
+  SnowBlend,
   Ring,
   SmokeData,
   StormAlert,
@@ -34,6 +37,7 @@ import {
   fetchGridAmounts,
   fetchHotspots,
   fetchHrrrFrames,
+  fetchModelRun,
   fetchNdfdTimes,
   fetchOutlook,
   fetchPeriods,
@@ -399,4 +403,43 @@ export async function getPointForecast(lat: number, lon: number, now: number): P
       amountsMissing: !grid.ok,
     },
   };
+}
+
+/** Keep each model's run about as long as the model takes to run again. */
+function cacheModelRun(key: string): void {
+  const model = BLEND_MODELS.find((m) => m.key === key);
+  if (model?.kind === "ensemble") cacheLife("modelsEnsemble");
+  else if (key === "hrrr" || key === "hrdps" || key === "nbm") cacheLife("modelsHourly");
+  else cacheLife("modelsGlobal");
+}
+
+/** One model's run for a spot. `lat`/`lon` must already be rounded. */
+async function getModelRun(key: string, lat: number, lon: number): Promise<Fetched<ModelRun>> {
+  "use cache";
+  try {
+    const model = BLEND_MODELS.find((m) => m.key === key);
+    if (!model) throw new Error(`unknown model ${key}`);
+    const value = await fetchModelRun(model, lat, lon);
+    cacheModelRun(key);
+    return { ok: true, value };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+/**
+ * A spot's snow blend. Not itself cached: the half-days are cut at `now`,
+ * and each model has its own entry. Models that fail are left out and
+ * named; only every model failing is an error.
+ */
+export async function getSnowBlend(lat: number, lon: number, now: number): Promise<Fetched<SnowBlend>> {
+  const results = await Promise.all(BLEND_MODELS.map((m) => getModelRun(m.key, lat, lon)));
+  const runs = results.flatMap((r) => (r.ok ? [r.value] : []));
+  const failed = BLEND_MODELS.filter((_, i) => !results[i].ok).map((m) => m.key);
+  if (runs.length === 0) return results[0] as Fetched<SnowBlend>;
+  for (const key of failed) {
+    const r = results[BLEND_MODELS.findIndex((m) => m.key === key)];
+    if (!r.ok) console.error(`[outside] ${key} run failed: ${r.error}`);
+  }
+  return { ok: true, value: buildBlend(runs, now, failed) };
 }

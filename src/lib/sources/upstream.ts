@@ -22,6 +22,7 @@ import {
 } from "../forecast";
 import { nominatimUrl, parseNominatim } from "../geocode";
 import { mrmsFileUrl, type MrmsProduct } from "../mrms";
+import { BLEND_MODELS, modelUrl, parseModelRun, type BlendModel, type ModelRun } from "../openmeteo";
 import { buildOutlook } from "../outlook";
 import {
   buildDays,
@@ -36,6 +37,7 @@ import {
 } from "../point-forecast";
 import { createRateLimiterState, recordHit } from "../rate-limit";
 import { parseSpcCsv, reportsUrl } from "../reports";
+import { buildBlend } from "../snow-blend";
 import { parseSmokeKml, smokeUrl, sortPlumes, utcDate } from "../smoke";
 import {
   layerQueryUrl,
@@ -65,6 +67,7 @@ import type {
   OutlookProduct,
   PointForecast,
   Ring,
+  SnowBlend,
   SmokeData,
   StormAlert,
   StormReport,
@@ -464,6 +467,53 @@ export async function fetchPointForecast(lat: number, lon: number, now: number):
   const point = await fetchPoint(lat, lon);
   const [periods, grid] = await Promise.all([fetchPeriods(point.forecastUrl), fetchGridAmounts(point.gridUrl)]);
   return { place: point.place, updated: periods.updated, days: buildDays(periods, grid, now), amountsMissing: false };
+}
+
+// --- Snow blend (Open-Meteo) -------------------------------------------------------
+
+/**
+ * Open-Meteo's free tier allows under 10,000 calls a day, and counts a
+ * request with many variables, many days or ensemble members as several. A
+ * place's blend is 11 requests, cached for one to six hours by model, so
+ * this many a day is far more than a handful of places need — it's here so
+ * a runaway can never get this server's address blocked.
+ */
+const OPEN_METEO_DAY_MS = 24 * 60 * 60 * 1000;
+const OPEN_METEO_DAILY_REQUESTS = 1500;
+const openMeteoBudget = createRateLimiterState();
+const OPEN_METEO_TIMEOUT_MS = 30_000;
+
+/** One model's run for a spot. Ensemble answers are large, so this waits longer than other feeds. */
+export async function fetchModelRun(model: BlendModel, lat: number, lon: number): Promise<ModelRun> {
+  const url = modelUrl(model, lat, lon);
+  if (!recordHit(openMeteoBudget, "*", Date.now(), OPEN_METEO_DAY_MS, OPEN_METEO_DAILY_REQUESTS)) {
+    throw new UpstreamError(url, null, "Open-Meteo: this server's daily request budget is used up");
+  }
+  const response = await get(url, "application/json", OPEN_METEO_TIMEOUT_MS);
+  return parseModelRun(model, await response.json());
+}
+
+/** Per-visitor and site-wide ceilings on blend lookups; each is up to 11 upstream requests. */
+const BLEND_VISITOR_WINDOW_MS = 10 * 60 * 1000;
+const BLEND_VISITOR_MAX = 30;
+const BLEND_GLOBAL_WINDOW_MS = 60 * 60 * 1000;
+const BLEND_GLOBAL_MAX = 300;
+const blendVisitorLimiter = createRateLimiterState();
+const blendGlobalLimiter = createRateLimiterState();
+
+export function snowBlendAllowed(visitorKey: string, now = Date.now()): boolean {
+  const global = recordHit(blendGlobalLimiter, "*", now, BLEND_GLOBAL_WINDOW_MS, BLEND_GLOBAL_MAX);
+  const visitor = recordHit(blendVisitorLimiter, visitorKey, now, BLEND_VISITOR_WINDOW_MS, BLEND_VISITOR_MAX);
+  return global && visitor;
+}
+
+/** A spot's snow blend, uncached — for `check:sources`. */
+export async function fetchSnowBlend(lat: number, lon: number, now: number): Promise<SnowBlend> {
+  const results = await Promise.allSettled(BLEND_MODELS.map((m) => fetchModelRun(m, lat, lon)));
+  const runs = results.flatMap((r) => (r.status === "fulfilled" ? [r.value] : []));
+  const failed = BLEND_MODELS.filter((_, i) => results[i].status === "rejected").map((m) => m.key);
+  if (runs.length === 0) throw (results[0] as PromiseRejectedResult).reason;
+  return buildBlend(runs, now, failed);
 }
 
 /**
