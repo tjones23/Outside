@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { PageBody, PageHeader } from "@/components/PageHeader";
+import { BLEND_MODELS } from "@/lib/openmeteo";
 
 export const metadata: Metadata = { title: "About" };
 
@@ -48,6 +49,11 @@ const SOURCES = [
     name: "National Weather Service — point forecasts",
     href: "https://www.weather.gov/documentation/services-web-api",
     what: "Each saved place's 7-day forecast: the forecasters' day and night wording, highs and lows, and new snow and precipitation from the same office's forecast grid. Fetched when you open a place, refreshed every 15 minutes.",
+  },
+  {
+    name: "Open-Meteo",
+    href: "https://open-meteo.com/",
+    what: "Point forecasts from the weather models behind each saved place's 15-day snow blend — see below. Free for non-commercial use; data CC BY 4.0. Each model is refreshed about as often as it runs: hourly for HRRR, HRDPS and NBM, every few hours for the rest.",
   },
   {
     name: "NIFC — Wildland Fire Interagency Geospatial Services",
@@ -101,6 +107,35 @@ export default function AboutPage() {
                   {s.name}
                 </a>
                 <span className="block">{s.what}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        <section>
+          <h2 className="mb-2 text-base font-semibold text-text">How the snow blend works</h2>
+          <p className="mb-3">
+            Every model below forecasts how much water falls. For each hour, Outside decides how much of it
+            reaches this spot as snow, from the wet-bulb temperature at the spot&rsquo;s real elevation and any
+            layer warm enough aloft to melt flakes. It then decides how fluffy that snow lands with the Kuchera
+            method: the ratio rises as the warmest air the flakes fall through gets colder, counting only air
+            above the ground, so a high resort isn&rsquo;t treated like the valley below it. Strong wind packs
+            snow down, so it lowers the ratio. Models without upper-air temperatures borrow the others&rsquo;
+            consensus.
+          </p>
+          <p className="mb-3">
+            The models are then averaged, each weighted by how well it does at that range. The weights are
+            Outside&rsquo;s own starting point, not tuned against observations. OpenSnow&rsquo;s PEAKS model,
+            trained on years of past storms, and its forecasters&rsquo; judgment aren&rsquo;t reproduced here.
+          </p>
+          <ul className="space-y-2">
+            {BLEND_MODELS.map((m) => (
+              <li key={m.key}>
+                <span className="font-medium text-text">{m.name}</span>{" "}
+                <span className="text-muted-dim">
+                  {m.maker} · {m.resolutionKm} km{m.kind === "ensemble" ? " · ensemble" : ""}
+                </span>
+                <span className="block">{m.role}</span>
               </li>
             ))}
           </ul>

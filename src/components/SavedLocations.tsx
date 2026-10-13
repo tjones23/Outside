@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState, type ReactNode } from "react";
 import { categoryGlyph } from "@/lib/categories";
 import { textOn } from "@/lib/color";
-import { useHydrated, useSavedLocations } from "@/lib/client-store";
+import { usePlaceTab, useHydrated, useSavedLocations, type PlaceTab } from "@/lib/client-store";
 import { formatDateTime, formatMiles } from "@/lib/format";
 import { alertsContaining, NEARBY_RADIUS_MILES, reportsNear, savedLocationStatus } from "@/lib/nearby";
 import type { SavedLocation, StormAlert, StormReport } from "@/lib/types";
@@ -11,8 +11,10 @@ import { AddLocationForm } from "./AddLocationForm";
 import { AlertDetail, ReportDetail } from "./Details";
 import { PageHeader } from "./PageHeader";
 import { PlaceForecast } from "./PlaceForecast";
+import { SnowBlend } from "./SnowBlend";
 import { useFilteredData } from "./providers/useFilteredData";
 import { Sheet } from "./ui/Sheet";
+import { tabId, tabPanelId, Tabs } from "./ui/Tabs";
 import { Button, EmptyState, SectionTitle } from "./ui/controls";
 
 /** Saved places, each with a one-line storm status (the mobile app's list). */
@@ -28,7 +30,7 @@ export function SavedLocations() {
     <>
       <PageHeader
         title="Places"
-        subtitle="Saved in this browser only. Open one for its 7-day forecast. Used for the “saved place” notification."
+        subtitle="Saved in this browser only. Open one for its 7-day forecast and 15-day snow blend. Used for the “saved place” notification."
         actions={
           <Button variant="primary" onClick={() => setAdding(true)}>
             Add place
@@ -103,6 +105,13 @@ function LocationDetail({
   onClose: () => void;
 }) {
   const [alert, setAlert] = useState<StormAlert | null>(null);
+  const ids = useId();
+  const { tab, setTab } = usePlaceTab();
+  const [seen, setSeen] = useState<Set<PlaceTab>>(() => new Set([tab]));
+  const choose = (next: PlaceTab) => {
+    setTab(next);
+    setSeen((prev) => (prev.has(next) ? prev : new Set(prev).add(next)));
+  };
   const [report, setReport] = useState<StormReport | null>(null);
   const point: [number, number] = [location.lat, location.lon];
   const here = alertsContaining(alerts, point);
@@ -160,31 +169,80 @@ function LocationDetail({
         </ul>
       )}
 
-      <SectionTitle>7-day forecast</SectionTitle>
-      <PlaceForecast lat={location.lat} lon={location.lon} />
+      <Tabs
+        label="Place details"
+        idPrefix={ids}
+        value={tab}
+        onChange={choose}
+        tabs={[
+          { value: "forecast", label: "7-day" },
+          { value: "snow", label: "15-day snow" },
+          { value: "reports", label: near.length > 0 ? `Reports (${near.length})` : "Reports" },
+        ]}
+        className="sticky -top-4 z-10 -mx-5 mt-5 border-b border-line-soft bg-surface px-5 py-2"
+      />
 
-      <SectionTitle>Reports within {NEARBY_RADIUS_MILES} mi</SectionTitle>
-      {near.length === 0 ? (
-        <p className="text-sm text-muted">None match your filters.</p>
-      ) : (
-        <ul className="divide-y divide-line-soft">
-          {near.map(({ report: r, miles }) => (
-            <li key={r.id}>
-              <button
-                type="button"
-                onClick={() => setReport(r)}
-                className="flex w-full items-baseline gap-2 py-2 text-left text-sm hover:text-accent"
-              >
-                <span aria-hidden="true">{categoryGlyph(r.category)}</span>
-                <span className="min-w-0 flex-1 truncate">
-                  {r.title} <span className="text-muted-dim">· {r.location}</span>
-                </span>
-                <span className="shrink-0 text-xs tabular-nums text-muted">{formatMiles(miles)}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
+      {/* Each tab mounts the first time it's opened and stays mounted, so
+          switching back is instant and the snow blend's eleven model requests
+          only go out for someone who looks at it. */}
+      <TabPanel ids={ids} value="forecast" tab={tab} seen={seen}>
+        <PlaceForecast lat={location.lat} lon={location.lon} />
+      </TabPanel>
+      <TabPanel ids={ids} value="snow" tab={tab} seen={seen}>
+        <SnowBlend lat={location.lat} lon={location.lon} />
+      </TabPanel>
+      <TabPanel ids={ids} value="reports" tab={tab} seen={seen}>
+        <p className="mb-1 text-xs text-muted-dim">Storm reports within {NEARBY_RADIUS_MILES} miles, matching your filters.</p>
+        {near.length === 0 ? (
+          <p className="text-sm text-muted">None.</p>
+        ) : (
+          <ul className="divide-y divide-line-soft">
+            {near.map(({ report: r, miles }) => (
+              <li key={r.id}>
+                <button
+                  type="button"
+                  onClick={() => setReport(r)}
+                  className="flex w-full items-baseline gap-2 py-2 text-left text-sm hover:text-accent"
+                >
+                  <span aria-hidden="true">{categoryGlyph(r.category)}</span>
+                  <span className="min-w-0 flex-1 truncate">
+                    {r.title} <span className="text-muted-dim">· {r.location}</span>
+                  </span>
+                  <span className="shrink-0 text-xs tabular-nums text-muted">{formatMiles(miles)}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </TabPanel>
     </Sheet>
+  );
+}
+
+function TabPanel({
+  ids,
+  value,
+  tab,
+  seen,
+  children,
+}: {
+  ids: string;
+  value: PlaceTab;
+  tab: PlaceTab;
+  seen: Set<PlaceTab>;
+  children: ReactNode;
+}) {
+  const active = value === tab;
+  return (
+    <div
+      role="tabpanel"
+      id={tabPanelId(ids, value)}
+      aria-labelledby={tabId(ids, value)}
+      hidden={!active}
+      tabIndex={0}
+      className="pt-3 focus-visible:outline-none"
+    >
+      {(active || seen.has(value)) && children}
+    </div>
   );
 }

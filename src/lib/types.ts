@@ -271,6 +271,59 @@ export interface PointForecast {
   amountsMissing: boolean;
 }
 
+/** One model's snow over some stretch, inches. Ensembles give their mean and 10th–90th percentile. */
+export interface BlendModelTotal {
+  /** A `BLEND_MODELS` key. */
+  key: string;
+  snowIn: number;
+  p10In?: number;
+  p90In?: number;
+  members?: number;
+}
+
+/** The blended snow over some stretch, with the range the models span. */
+export interface BlendSpan {
+  /** Null unless the blend covers all of it. */
+  snowIn: number | null;
+  /** Lowest single model or ensemble 10th percentile. */
+  lowIn: number | null;
+  /** Highest single model or ensemble 90th percentile. */
+  highIn: number | null;
+  models: BlendModelTotal[];
+}
+
+/** A 6 AM–6 AM day of the snow blend; the first may be a night alone. */
+export interface BlendDay extends BlendSpan {
+  /** The local date it starts on. */
+  date: string;
+  nightOnly: boolean;
+  /** Blended snow, 6 AM–6 PM and 6 PM–6 AM. */
+  dayIn: number | null;
+  nightIn: number | null;
+  /** Liquid precipitation, rain and melted snow, inches. */
+  precipIn: number | null;
+  /** Snow-to-liquid ratio of the blend (15 means 15:1), when there's snow to speak of. */
+  ratio: number | null;
+  /** Blended °F. */
+  high: number | null;
+  low: number | null;
+}
+
+/** The `/api/snow-blend` payload. */
+export interface SnowBlend {
+  /** The spot's IANA zone. */
+  timezone: string;
+  /** The terrain height temperatures were corrected to, m. */
+  elevationM: number | null;
+  /** Up to 15. */
+  days: BlendDay[];
+  /** "Next 5 days", "Days 6–10", "Days 11–15". */
+  periods: (BlendSpan & { label: string })[];
+  /** `BLEND_MODELS` keys that answered, and that didn't. */
+  loaded: string[];
+  failed: string[];
+}
+
 export interface GeocodeResult {
   /** Short, e.g. "Moore, Oklahoma". */
   name: string;

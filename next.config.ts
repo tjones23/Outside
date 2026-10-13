@@ -53,6 +53,12 @@ const nextConfig: NextConfig = {
     // A saved place's 7-day forecast. Offices reissue a few times a day and
     // update the grid in between as conditions change.
     pointForecast: { stale: MINUTE, revalidate: 15 * MINUTE, expire: 2 * HOUR },
+    // Snow blend model runs, kept about as long as each model takes to run
+    // again: HRRR, HRDPS and NBM hourly; global models every 6 hours, landing
+    // over a few hours; ensembles every 6.
+    modelsHourly: { stale: MINUTE, revalidate: HOUR, expire: 3 * HOUR },
+    modelsGlobal: { stale: MINUTE, revalidate: 3 * HOUR, expire: 9 * HOUR },
+    modelsEnsemble: { stale: MINUTE, revalidate: 6 * HOUR, expire: 12 * HOUR },
     // Place names don't move. Long caching is also what Nominatim's usage
     // policy asks of every client.
     geocode: { stale: MINUTE, revalidate: 30 * DAY, expire: 90 * DAY },

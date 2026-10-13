@@ -29,6 +29,8 @@
   --tornado: #ff3b30;
   --wind: #4f7cff;
   --hail: #34c77b;
+  /* Snow forecast bars; checked against the surface with the dataviz validator. */
+  --snow: #4f8fe8;
 
   /* Alert kinds. */
   --warning: #ef4444;
@@ -53,6 +55,7 @@
 
   --ink: #f5f5f7;
   --surface: #ffffff;
+  --snow: #2f6fd6;
   --surface-2: #ededf1;
   --line: #d6d6de;
   --line-soft: #e6e6eb;
@@ -88,6 +91,7 @@
   --color-tornado: var(--tornado);
   --color-wind: var(--wind);
   --color-hail: var(--hail);
+  --color-snow: var(--snow);
   --color-warning: var(--warning);
   --color-watch: var(--watch);
   --color-danger: var(--danger);

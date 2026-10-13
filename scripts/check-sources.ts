@@ -20,6 +20,7 @@ import {
   fetchMrmsFile,
   fetchOutlook,
   fetchPointForecast,
+  fetchSnowBlend,
   fetchReportDay,
   fetchSmoke,
   fetchTropical,
@@ -170,6 +171,13 @@ async function main(): Promise<void> {
     if (days.length === 0) throw new Error("no forecast periods");
     const snowDays = days.filter((d) => d.snowIn !== null).length;
     return `${place ?? "?"}: ${days.length} days, snow amounts for ${snowDays}`;
+  });
+
+  await check("Open-Meteo snow blend (Alta)", async () => {
+    const blend = await fetchSnowBlend(40.5884, -111.6386, Date.now());
+    const next5 = blend.periods[0];
+    const failed = blend.failed.length > 0 ? `, failed: ${blend.failed.join(", ")}` : "";
+    return `${blend.loaded.length}/${blend.loaded.length + blend.failed.length} models, next 5 days ${next5?.snowIn ?? "?"}″${failed}`;
   });
 
   for (const product of ["PrecipFlag", "SeamlessHSR"] as MrmsProduct[]) {
