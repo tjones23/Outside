@@ -41,3 +41,15 @@ export function formatUtcTime(hhmm: string): string {
 export function formatMiles(miles: number): string {
   return miles < 10 ? `${miles.toFixed(1)} mi` : `${Math.round(miles)} mi`;
 }
+
+/**
+ * A forecast amount in inches, to `decimals` places: "6.2″", "<0.1″", "0".
+ * Null — no forecast that far out — is "—".
+ */
+export function formatInches(inches: number | null, decimals: number): string {
+  if (inches === null) return "—";
+  if (inches === 0) return "0";
+  const step = 10 ** -decimals;
+  if (inches < step / 2) return `<${step.toFixed(decimals)}″`;
+  return `${inches.toFixed(decimals)}″`;
+}

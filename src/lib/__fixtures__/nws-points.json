@@ -1,0 +1,33 @@
+{
+  "@context": ["https://geojson.org/geojson-ld/geojson-context.jsonld"],
+  "id": "https://api.weather.gov/points/40.588,-111.638",
+  "type": "Feature",
+  "geometry": { "type": "Point", "coordinates": [-111.638, 40.588] },
+  "properties": {
+    "@id": "https://api.weather.gov/points/40.588,-111.638",
+    "@type": "wx:Point",
+    "cwa": "SLC",
+    "forecastOffice": "https://api.weather.gov/offices/SLC",
+    "gridId": "SLC",
+    "gridX": 108,
+    "gridY": 166,
+    "forecast": "https://api.weather.gov/gridpoints/SLC/108,166/forecast",
+    "forecastHourly": "https://api.weather.gov/gridpoints/SLC/108,166/forecast/hourly",
+    "forecastGridData": "https://api.weather.gov/gridpoints/SLC/108,166",
+    "observationStations": "https://api.weather.gov/gridpoints/SLC/108,166/stations",
+    "relativeLocation": {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-111.6386, 40.5884] },
+      "properties": {
+        "city": "Alta",
+        "state": "UT",
+        "distance": { "unitCode": "wmoUnit:m", "value": 95.2 },
+        "bearing": { "unitCode": "wmoUnit:degree_(angle)", "value": 270 }
+      }
+    },
+    "forecastZone": "https://api.weather.gov/zones/forecast/UTZ110",
+    "county": "https://api.weather.gov/zones/county/UTC035",
+    "timeZone": "America/Denver",
+    "radarStation": "KMTX"
+  }
+}

@@ -41,6 +41,7 @@ Service and Nominatim, both of which ask for one. It defaults to this repo.
 | [NOAA MRMS](https://www.nssl.noaa.gov/projects/mrms/) (`mrms.ncep.noaa.gov`) | Radar, last hour, colored rain or snow; drawn into tiles by this server | 10 min, while radar is on |
 | [Iowa Environmental Mesonet](https://mesonet.agron.iastate.edu/) | HRRR simulated radar, hourly to 18 h, as tiles | 10 min |
 | [NDFD WMS](https://digital.weather.gov/) | NWS 7-day gridded forecast: temperature, feels-like, gusts, rain, rain chance, cloud, snow | 10 min |
+| [NWS API](https://www.weather.gov/documentation/services-web-api) `points` + `gridpoints` | A saved place's 7-day forecast: day/night periods, new snow and precipitation per day | 15 min (grid cell lookup: 7 days), on opening a place |
 | [NIFC WFIGS](https://data-nifc.opendata.arcgis.com/) | Wildfires not yet out (size, containment, cause) and their mapped perimeters | 5 min (fires), 15 min (perimeters) |
 | [NASA FIRMS](https://firms.modaps.eosdis.nasa.gov/) VIIRS via [Esri Living Atlas](https://livingatlas.arcgis.com/) | Satellite fire hotspots, last 24 h, US and Canada | 15 min, while on |
 | [NOAA HMS](https://www.ospo.noaa.gov/products/land/hms.html) | Smoke plumes by density, today's (UTC) analysis or yesterday's until today's is drawn | 30 min, while on |
@@ -62,7 +63,8 @@ Service and Nominatim, both of which ask for one. It defaults to this repo.
   flood, coastal, heat, winter, wind, fire, marine, other) and tier (warning,
   watch, advisory, statement), by recency, severity or distance.
 - **Places** — saved places, each with a one-line status; open one for the
-  warnings covering it and the reports within 50 miles.
+  warnings covering it, its 7-day NWS forecast with snow and precipitation
+  amounts per day, and the reports within 50 miles.
 - **Settings** — notifications for new warnings at your places, or anywhere.
 
 ## Architecture
@@ -73,6 +75,7 @@ src/lib/               pure, framework-free, unit-tested
   alert-catalog.ts     every NWS event → hazard family, color, priority
   tropical.ts          NHC storms and outlook → TropicalData
   forecast.ts          HRRR (IEM) and NDFD (WMS) → animation frames
+  point-forecast.ts    NWS points/forecast/grid → a place's 7 days with snow and precip
   reports.ts           SPC CSV → StormReport; convective days (12Z–12Z)
   outlook.ts           SPC / WPC outlook GeoJSON → features + hatch lines
   mrms.ts              MRMS GRIB2 (PNG-packed) → rain/snow radar tiles
@@ -87,7 +90,7 @@ src/lib/               pure, framework-free, unit-tested
   client-store.ts      filters, places, settings — localStorage, per browser
   sources/upstream.ts  every upstream request (uncached, used by scripts too)
   sources/cached.ts    the same behind `use cache` + named cacheLife profiles
-src/app/api/*          alerts, reports, outlook, radar, tropical, forecast, fires, hotspots, smoke, air, geocode — polled by the page
+src/app/api/*          alerts, reports, outlook, radar, tropical, forecast, point-forecast, fires, hotspots, smoke, air, geocode — polled by the page
 src/components/        UI; the map is hosted in the root layout (see MapHost)
 scripts/               launchers' shared shell, lid-hold registry, source check
 ```

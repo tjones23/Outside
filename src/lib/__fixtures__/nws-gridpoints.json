@@ -1,0 +1,108 @@
+{
+  "@context": [],
+  "id": "https://api.weather.gov/gridpoints/SLC/108,166",
+  "type": "Feature",
+  "geometry": {
+    "type": "Polygon",
+    "coordinates": []
+  },
+  "properties": {
+    "updateTime": "2026-10-13T20:41:07+00:00",
+    "validTimes": "2026-10-13T14:00:00+00:00/P7DT11H",
+    "gridId": "SLC",
+    "gridX": "108",
+    "gridY": "166",
+    "temperature": {
+      "uom": "wmoUnit:degC",
+      "values": [
+        {
+          "validTime": "2026-10-13T21:00:00+00:00/PT1H",
+          "value": 7.2
+        }
+      ]
+    },
+    "snowfallAmount": {
+      "uom": "wmoUnit:mm",
+      "values": [
+        {
+          "validTime": "2026-10-13T12:00:00+00:00/PT6H",
+          "value": 0
+        },
+        {
+          "validTime": "2026-10-13T18:00:00+00:00/PT6H",
+          "value": 6.096
+        },
+        {
+          "validTime": "2026-10-14T00:00:00+00:00/PT6H",
+          "value": 25.4
+        },
+        {
+          "validTime": "2026-10-14T06:00:00+00:00/PT6H",
+          "value": 76.2
+        },
+        {
+          "validTime": "2026-10-14T12:00:00+00:00/PT6H",
+          "value": 50.8
+        },
+        {
+          "validTime": "2026-10-14T18:00:00+00:00/PT6H",
+          "value": 25.4
+        },
+        {
+          "validTime": "2026-10-15T00:00:00+00:00/PT12H",
+          "value": 30.48
+        },
+        {
+          "validTime": "2026-10-15T12:00:00+00:00/PT6H",
+          "value": 0
+        },
+        {
+          "validTime": "2026-10-15T18:00:00+00:00/PT6H",
+          "value": 0
+        }
+      ]
+    },
+    "quantitativePrecipitation": {
+      "uom": "wmoUnit:mm",
+      "values": [
+        {
+          "validTime": "2026-10-13T12:00:00+00:00/PT6H",
+          "value": null
+        },
+        {
+          "validTime": "2026-10-13T18:00:00+00:00/PT6H",
+          "value": 2.54
+        },
+        {
+          "validTime": "2026-10-14T00:00:00+00:00/PT6H",
+          "value": 5.08
+        },
+        {
+          "validTime": "2026-10-14T06:00:00+00:00/PT6H",
+          "value": 7.62
+        },
+        {
+          "validTime": "2026-10-14T12:00:00+00:00/PT12H",
+          "value": 10.16
+        },
+        {
+          "validTime": "2026-10-15T00:00:00+00:00/PT12H",
+          "value": 2.54
+        },
+        {
+          "validTime": "2026-10-15T12:00:00+00:00/P1D",
+          "value": 0
+        }
+      ]
+    },
+    "iceAccumulation": {
+      "uom": "wmoUnit:mm",
+      "values": [
+        {
+          "validTime": "2026-10-13T12:00:00+00:00/P7D",
+          "value": 0
+        }
+      ]
+    }
+  }
+}
