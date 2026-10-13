@@ -45,6 +45,11 @@ const SOURCES = [
     what: "The National Weather Service's gridded forecast for the next week: temperature, feels-like, gusts, rain, rain chance, cloud cover and snow.",
   },
   {
+    name: "National Weather Service — point forecasts",
+    href: "https://www.weather.gov/documentation/services-web-api",
+    what: "Each saved place's 7-day forecast: the forecasters' day and night wording, highs and lows, and new snow and precipitation from the same office's forecast grid. Fetched when you open a place, refreshed every 15 minutes.",
+  },
+  {
     name: "NIFC — Wildland Fire Interagency Geospatial Services",
     href: "https://data-nifc.opendata.arcgis.com/",
     what: "Every wildfire not yet declared out, with its size, containment and cause, and its mapped perimeter — the interagency record federal and state agencies report to. Fires checked every 5 minutes, perimeters every 15. It can trail what's happening on the ground by hours.",

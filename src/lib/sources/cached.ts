@@ -1,6 +1,7 @@
 import { cacheLife } from "next/cache";
 import { airNowHour, hourIso } from "../air-quality";
 import { buildNdfdFrames, forecastProduct, pickNdfdTimes } from "../forecast";
+import { buildDays, type GridAmounts, type PeriodForecast, type PointInfo } from "../point-forecast";
 import { convectiveDate } from "../reports";
 import { utcDate } from "../smoke";
 import type {
@@ -12,6 +13,7 @@ import type {
   Hotspot,
   OutlookData,
   OutlookProduct,
+  PointForecast,
   ReportsData,
   Ring,
   SmokeData,
@@ -29,10 +31,13 @@ import {
   fetchFireIncidents,
   fetchFirePerimeters,
   fetchGeocode,
+  fetchGridAmounts,
   fetchHotspots,
   fetchHrrrFrames,
   fetchNdfdTimes,
   fetchOutlook,
+  fetchPeriods,
+  fetchPoint,
   fetchReportDay,
   fetchSmokeDay,
   fetchTropical,
@@ -337,4 +342,61 @@ export async function getGeocode(query: string): Promise<Fetched<GeocodeResult[]
   } catch (error) {
     return failure(error);
   }
+}
+
+/** Which grid cell covers a spot. `lat`/`lon` must already be rounded, so repeats share an entry. */
+async function getPoint(lat: number, lon: number): Promise<Fetched<PointInfo>> {
+  "use cache";
+  try {
+    const value = await fetchPoint(lat, lon);
+    cacheLife("points");
+    return { ok: true, value };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+async function getPeriods(forecastUrl: string): Promise<Fetched<PeriodForecast>> {
+  "use cache";
+  try {
+    const value = await fetchPeriods(forecastUrl);
+    cacheLife("pointForecast");
+    return { ok: true, value };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+async function getGridAmounts(gridUrl: string): Promise<Fetched<GridAmounts>> {
+  "use cache";
+  try {
+    const value = await fetchGridAmounts(gridUrl);
+    cacheLife("pointForecast");
+    return { ok: true, value };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+/**
+ * A spot's 7-day forecast. Not itself cached: rows are cut at `now`, and
+ * the grid cell, the wording and the amounts each have their own entry.
+ * Only the wording failing is an error; without the grid the rows still
+ * show, just without snow and precipitation amounts.
+ */
+export async function getPointForecast(lat: number, lon: number, now: number): Promise<Fetched<PointForecast>> {
+  const point = await getPoint(lat, lon);
+  if (!point.ok) return point;
+  const [periods, grid] = await Promise.all([getPeriods(point.value.forecastUrl), getGridAmounts(point.value.gridUrl)]);
+  if (!periods.ok) return periods;
+  if (!grid.ok) console.error(`[outside] forecast grid failed: ${grid.error}`);
+  return {
+    ok: true,
+    value: {
+      place: point.value.place,
+      updated: periods.value.updated,
+      days: buildDays(periods.value, grid.ok ? grid.value : null, now),
+      amountsMissing: !grid.ok,
+    },
+  };
 }

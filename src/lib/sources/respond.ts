@@ -53,3 +53,13 @@ export function respond<T>(what: string, result: Fetched<T>, shape: (value: T) =
     { status: 502, headers: HEADERS },
   );
 }
+
+/**
+ * The caller's address, for per-visitor limits. Tailscale's proxy (serve or
+ * Funnel) sets this to the connecting IP; a request that somehow arrives
+ * without it is still counted, just all under one shared key.
+ */
+export function visitorKey(request: Request): string {
+  const forwarded = request.headers.get("x-forwarded-for");
+  return forwarded?.split(",")[0]?.trim() || "unknown";
+}

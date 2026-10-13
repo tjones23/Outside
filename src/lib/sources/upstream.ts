@@ -23,6 +23,17 @@ import {
 import { nominatimUrl, parseNominatim } from "../geocode";
 import { mrmsFileUrl, type MrmsProduct } from "../mrms";
 import { buildOutlook } from "../outlook";
+import {
+  buildDays,
+  isNwsUrl,
+  parseGridAmounts,
+  parsePeriods,
+  parsePoint,
+  pointsUrl,
+  type GridAmounts,
+  type PeriodForecast,
+  type PointInfo,
+} from "../point-forecast";
 import { createRateLimiterState, recordHit } from "../rate-limit";
 import { parseSpcCsv, reportsUrl } from "../reports";
 import { parseSmokeKml, smokeUrl, sortPlumes, utcDate } from "../smoke";
@@ -52,6 +63,7 @@ import type {
   Hotspot,
   OutlookData,
   OutlookProduct,
+  PointForecast,
   Ring,
   SmokeData,
   StormAlert,
@@ -401,6 +413,57 @@ export async function fetchMrmsFile(product: MrmsProduct, time: number): Promise
     if (error instanceof UpstreamError && error.status === 404) return null;
     throw error;
   }
+}
+
+// --- A place's 7-day forecast --------------------------------------------------
+
+/** Which NWS office and grid cell cover a spot. */
+export async function fetchPoint(lat: number, lon: number): Promise<PointInfo> {
+  const response = await get(pointsUrl(lat, lon), "application/geo+json");
+  return parsePoint(await response.json());
+}
+
+/** `url` comes from `fetchPoint`; anything off the NWS API is refused rather than fetched. */
+async function getNws(url: string): Promise<unknown> {
+  if (!isNwsUrl(url)) throw new UpstreamError(url, null, `not an NWS API URL: ${url}`);
+  const response = await get(url, "application/geo+json");
+  return response.json();
+}
+
+export async function fetchPeriods(forecastUrl: string): Promise<PeriodForecast> {
+  return parsePeriods(await getNws(forecastUrl));
+}
+
+export async function fetchGridAmounts(gridUrl: string): Promise<GridAmounts> {
+  return parseGridAmounts(await getNws(gridUrl));
+}
+
+/**
+ * Per-visitor and site-wide ceilings on forecast lookups. Each new spot is
+ * up to three NWS requests under this server's shared identity, and the
+ * coordinates come from the browser, so without these anyone could walk the
+ * map one cache miss at a time. Opening a place counts once; an open place
+ * re-polls every 15 minutes.
+ */
+const POINT_VISITOR_WINDOW_MS = 10 * 60 * 1000;
+const POINT_VISITOR_MAX = 60;
+const POINT_GLOBAL_WINDOW_MS = 60 * 60 * 1000;
+const POINT_GLOBAL_MAX = 1000;
+const pointVisitorLimiter = createRateLimiterState();
+const pointGlobalLimiter = createRateLimiterState();
+
+/** `visitorKey` identifies the caller (their address); checked before the cache. */
+export function pointForecastAllowed(visitorKey: string, now = Date.now()): boolean {
+  const global = recordHit(pointGlobalLimiter, "*", now, POINT_GLOBAL_WINDOW_MS, POINT_GLOBAL_MAX);
+  const visitor = recordHit(pointVisitorLimiter, visitorKey, now, POINT_VISITOR_WINDOW_MS, POINT_VISITOR_MAX);
+  return global && visitor;
+}
+
+/** A spot's forecast, uncached — for `check:sources`. */
+export async function fetchPointForecast(lat: number, lon: number, now: number): Promise<PointForecast> {
+  const point = await fetchPoint(lat, lon);
+  const [periods, grid] = await Promise.all([fetchPeriods(point.forecastUrl), fetchGridAmounts(point.gridUrl)]);
+  return { place: point.place, updated: periods.updated, days: buildDays(periods, grid, now), amountsMissing: false };
 }
 
 /**

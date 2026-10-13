@@ -19,6 +19,7 @@ import {
   fetchHotspots,
   fetchMrmsFile,
   fetchOutlook,
+  fetchPointForecast,
   fetchReportDay,
   fetchSmoke,
   fetchTropical,
@@ -162,6 +163,13 @@ async function main(): Promise<void> {
     const response = await fetch(tile);
     if (!response.ok) throw new Error(`GetMap HTTP ${response.status}`);
     return `${frames.length} frames from ${first.wms!.params.vtit}Z, GetMap 200`;
+  });
+
+  await check("NWS 7-day forecast (Alta, UT)", async () => {
+    const { place, days } = await fetchPointForecast(40.5884, -111.6386, Date.now());
+    if (days.length === 0) throw new Error("no forecast periods");
+    const snowDays = days.filter((d) => d.snowIn !== null).length;
+    return `${place ?? "?"}: ${days.length} days, snow amounts for ${snowDays}`;
   });
 
   for (const product of ["PrecipFlag", "SeamlessHSR"] as MrmsProduct[]) {

@@ -48,6 +48,11 @@ const nextConfig: NextConfig = {
     // A failed upstream request, remembered briefly so an outage costs one
     // upstream request per feed every half minute, not one per poll.
     failure: { stale: 30, revalidate: 30, expire: MINUTE },
+    // Which NWS grid cell covers a spot: changes only when NWS redraws its grids.
+    points: { stale: HOUR, revalidate: 7 * DAY, expire: 30 * DAY },
+    // A saved place's 7-day forecast. Offices reissue a few times a day and
+    // update the grid in between as conditions change.
+    pointForecast: { stale: MINUTE, revalidate: 15 * MINUTE, expire: 2 * HOUR },
     // Place names don't move. Long caching is also what Nominatim's usage
     // policy asks of every client.
     geocode: { stale: MINUTE, revalidate: 30 * DAY, expire: 90 * DAY },

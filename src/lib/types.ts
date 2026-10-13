@@ -222,6 +222,55 @@ export interface SavedLocation {
   addedAt: number;
 }
 
+/** One NWS forecast period ("Tonight", "Wednesday"), with the grid's amounts over its hours. */
+export interface ForecastPeriod {
+  name: string;
+  /** ISO, with the place's own offset. */
+  start: string;
+  end: string;
+  isDaytime: boolean;
+  /** °F: the high for a day period, the low for a night. */
+  temperature: number | null;
+  /** Percent. */
+  precipChance: number | null;
+  /** "Snow Likely". */
+  short: string;
+  /** The forecasters' full wording, accumulation ranges included. */
+  detail: string;
+  /** New snow, inches; null where NWS's grid doesn't reach. */
+  snowIn: number | null;
+  /** Liquid precipitation (rain plus melted snow), inches; null where the grid doesn't reach. */
+  precipIn: number | null;
+}
+
+/** A day period and the night after it — 6 AM to 6 AM. The first may be a night alone. */
+export interface ForecastDay {
+  /** The local date it starts on, "2026-10-14". */
+  date: string;
+  /** NWS's name for its first period: "Today", "Tonight", "Wednesday". */
+  name: string;
+  high: number | null;
+  low: number | null;
+  /** The higher of its periods' chances. */
+  precipChance: number | null;
+  summary: string;
+  /** Null unless the grid covers the whole row. */
+  snowIn: number | null;
+  precipIn: number | null;
+  periods: ForecastPeriod[];
+}
+
+/** The `/api/point-forecast` payload. */
+export interface PointForecast {
+  /** NWS's nearest named place, "Alta, UT". */
+  place: string | null;
+  /** When the forecasters last issued it. */
+  updated: string | null;
+  days: ForecastDay[];
+  /** The grid failed, so there are no snow or precipitation amounts this time. */
+  amountsMissing: boolean;
+}
+
 export interface GeocodeResult {
   /** Short, e.g. "Moore, Oklahoma". */
   name: string;
