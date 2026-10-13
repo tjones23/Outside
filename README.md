@@ -64,9 +64,10 @@ Service and Nominatim, both of which ask for one. It defaults to this repo.
   flood, coastal, heat, winter, wind, fire, marine, other) and tier (warning,
   watch, advisory, statement), by recency, severity or distance.
 - **Places** — saved places, each with a one-line status; open one for the
-  warnings covering it, its 7-day NWS forecast with snow and precipitation
-  amounts per day, a 15-day snow blend across eleven weather models with
-  each day's range, and the reports within 50 miles.
+  warnings covering it, then tabs for its 7-day NWS forecast (snow and
+  precipitation amounts per day), a 15-day snow blend across eleven weather
+  models with each day's range, and the reports within 50 miles. The last
+  tab used is remembered in the browser.
 - **Settings** — notifications for new warnings at your places, or anywhere.
 
 ## Architecture

@@ -23,6 +23,7 @@ const PREFIX = "outside";
 const FILTERS_KEY = `${PREFIX}:filters:v1`;
 const LOCATIONS_KEY = `${PREFIX}:locations:v1`;
 const NOTIFY_KEY = `${PREFIX}:notify:v1`;
+const PLACE_TAB_KEY = `${PREFIX}:place-tab:v1`;
 // v2: every NWS warning, not just tornado and severe thunderstorm. A new key
 // re-records the baseline, so the heat, flood and coastal warnings already in
 // effect the first time this version runs don't all notify at once.
@@ -224,6 +225,22 @@ export function useNotificationSettings() {
     });
   }, []);
   return { settings, update };
+}
+
+// --- Place sheet tab ----------------------------------------------------------
+
+export const PLACE_TABS = ["forecast", "snow", "reports"] as const;
+export type PlaceTab = (typeof PLACE_TABS)[number];
+
+function parsePlaceTab(value: unknown): PlaceTab {
+  return PLACE_TABS.includes(value as PlaceTab) ? (value as PlaceTab) : "forecast";
+}
+
+/** The tab a place opens on: the last one chosen, so a skier lands on snow every time. */
+export function usePlaceTab() {
+  const tab = useStored(PLACE_TAB_KEY, parsePlaceTab, "forecast");
+  const setTab = useCallback((next: PlaceTab) => persist(PLACE_TAB_KEY, next), []);
+  return { tab, setTab };
 }
 
 // --- Appearance ------------------------------------------------------------
