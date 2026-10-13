@@ -825,6 +825,81 @@ follow_log() {
 }
 
 # ---------------------------------------------------------------------------
+# Reachability
+#
+# Everything above reports how hosting is *configured*. This actually asks
+# for the page, the way a visitor would. The public check resolves the name
+# through public DNS and connects to the address it gets back — Tailscale's
+# Funnel relays — so it takes the same path as a phone off the tailnet, not
+# whatever shortcut this Mac's own resolver might know about.
+# ---------------------------------------------------------------------------
+
+PUBLIC_RESOLVER="${OUTSIDE_PUBLIC_RESOLVER:-1.1.1.1}"
+
+# One line describing a request: "200 in 0.41s", or curl's reason it failed.
+probe() {
+  local out code secs msg
+  out="$(curl -s -o /dev/null --max-time 10 -w '%{http_code} %{time_total} %{errormsg}' "$@" 2>/dev/null)"
+  code="${out%% *}"; out="${out#* }"
+  secs="${out%% *}"; msg="${out#* }"
+  if [ "$code" != "000" ] && [ -n "$code" ]; then
+    printf '%s in %.2fs' "$code" "$secs"
+    case "$code" in 2*|3*) return 0 ;; esac
+    return 1
+  fi
+  printf '%s' "${msg:-no response}"
+  return 1
+}
+
+check_reachability() {
+  say "${BOLD}Reachability${RESET}"
+
+  local result
+  if result="$(probe "http://127.0.0.1:$PORT/")"; then
+    ok "this Mac      http://127.0.0.1:$PORT — $result"
+  else
+    err "this Mac      http://127.0.0.1:$PORT — $result"
+  fi
+
+  local ts_url host
+  ts_url="$(ts_serve_url)"
+  [ -n "$ts_url" ] || return 0
+  host="${ts_url#https://}"; host="${host%%:*}"
+
+  if ! ts_public; then
+    say "  ${DIM}tailnet only — not checked from here; only devices signed in to the tailnet can open $ts_url${RESET}"
+    return 0
+  fi
+
+  if ! command -v dig >/dev/null 2>&1; then
+    warn "internet      can't check — dig isn't installed"
+    return 0
+  fi
+
+  local ips ip any_ok=""
+  ips="$(dig +short +time=3 +tries=1 A "$host" "@$PUBLIC_RESOLVER" 2>/dev/null | grep -E '^[0-9.]+$')"
+  if [ -z "$ips" ]; then
+    err "internet      $host has no public DNS record — Funnel isn't live yet (or was just turned on; give it a minute)"
+    return 1
+  fi
+
+  for ip in $ips; do
+    if result="$(probe --resolve "$host:$TS_HTTPS_PORT:$ip" "$ts_url/")"; then
+      ok "internet      $ts_url via $ip — $result"
+      any_ok=1
+    else
+      err "internet      $ts_url via $ip — $result"
+    fi
+  done
+
+  if [ -z "$any_ok" ]; then
+    say "  ${DIM}Right after a start or restart this can take a minute or two — try '$SELF status' again shortly.${RESET}"
+    return 1
+  fi
+  return 0
+}
+
+# ---------------------------------------------------------------------------
 # Status
 # ---------------------------------------------------------------------------
 
@@ -852,6 +927,11 @@ status() {
     esac
   elif have_tailscale; then
     say "  ${DIM}tailscaled isn't installed — Outside's own node can't run (brew install tailscale).${RESET}"
+  fi
+
+  if is_running; then
+    say ""
+    check_reachability
   fi
 
   sleep_summary
