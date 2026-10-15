@@ -14,7 +14,7 @@ import { useSecureContext } from "./useSecureContext";
  * the "near you" banner follow the viewer as they move.
  */
 
-interface LocationState {
+export interface LocationState {
   coord: LatLng | null;
   /** Radius of the fix's uncertainty, in meters. */
   accuracy: number | null;

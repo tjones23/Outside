@@ -39,7 +39,7 @@ export function localParts(ms: number, timeZone: string): { date: string; hour: 
   return { date: `${parts.year}-${parts.month}-${parts.day}`, hour: Number(parts.hour) % 24 };
 }
 
-function previousDate(date: string): string {
+export function previousDate(date: string): string {
   return new Date(Date.parse(`${date}T00:00:00Z`) - 24 * HOUR).toISOString().slice(0, 10);
 }
 
@@ -80,7 +80,7 @@ export function buildBuckets(times: number[], timeZone: string, now: number): Bu
 // --- Hourly snow, per run ----------------------------------------------------------
 
 /** One run (or ensemble member) as inches per hour on the shared axis. */
-interface Hourly {
+export interface Hourly {
   snow: Series;
   swe: Series;
   precip: Series;
@@ -321,31 +321,38 @@ function span(models: ModelBuckets[], idx: number[], blended: (number | null)[])
   };
 }
 
+/** Every run's hourly snow on the reference run's hour axis. */
+export interface ModelHours {
+  axis: number[];
+  timezone: string;
+  elevation: number | null;
+  /** One series for a deterministic model, one per member for an ensemble. */
+  models: { model: BlendModel; series: Hourly[] }[];
+}
+
 /**
- * The blend for a spot from whichever models answered. `runs` must all be
- * for the same spot; at least one is needed.
+ * Each run's precipitation turned into snow hour by hour, with its own
+ * column where it has upper-air temperatures and the models' consensus
+ * where it doesn't. `runs` must all be for the same spot; at least one is
+ * needed.
  */
-export function buildBlend(runs: ModelRun[], now: number, failed: string[] = []): SnowBlend {
+export function modelHours(runs: ModelRun[]): ModelHours {
   const reference = runs.find((r) => r.kind === "deterministic") ?? runs[0];
   if (!reference) throw new Error("no model answered");
   const axis = reference.times;
-  const timezone = reference.timezone;
   const indexOf = (times: number[]) => new Map(times.map((t, i) => [t, i]));
 
   const deterministic = runs.filter((r): r is DeterministicRun => r.kind === "deterministic");
   const detIndex = deterministic.map((r) => indexOf(r.times));
   const consensus = consensusColumn(deterministic, detIndex, axis);
   const fromConsensus = (h: number) => ({ col: consensus.col[h], aloft: consensus.aloft[h] });
-
-  const buckets = buildBuckets(axis, timezone, now);
   const byKey = new Map(BLEND_MODELS.map((m) => [m.key, m]));
 
-  const models: ModelBuckets[] = [];
+  const models: ModelHours["models"] = [];
   for (const run of runs) {
     const model = byKey.get(run.key);
     if (!model) continue;
     const index = indexOf(run.times);
-    let series: Hourly[];
     if (run.kind === "deterministic") {
       const own = (h: number, i: number) => {
         const levels = levelsAt(run, i);
@@ -354,17 +361,26 @@ export function buildBlend(runs: ModelRun[], now: number, failed: string[] = [])
         const aloft = warmestAloft(levels, surface);
         return { col: col ?? consensus.col[h], aloft: col !== null ? aloft : consensus.aloft[h] };
       };
-      series = [hourly(run, index, axis, own)];
+      models.push({ model, series: [hourly(run, index, axis, own)] });
     } else {
-      series = run.members.map((member) => hourly(member, index, axis, fromConsensus));
+      models.push({ model, series: run.members.map((member) => hourly(member, index, axis, fromConsensus)) });
     }
-    const t = totals(series, buckets);
-    models.push({
-      model,
-      ...t,
-      temp: run.kind === "deterministic" ? buckets.map((b) => tempRange(series[0], b)) : buckets.map(() => null),
-    });
   }
+  return { axis, timezone: reference.timezone, elevation: reference.elevation, models };
+}
+
+/**
+ * The blend for a spot from whichever models answered. `runs` must all be
+ * for the same spot; at least one is needed.
+ */
+export function buildBlend(runs: ModelRun[], now: number, failed: string[] = []): SnowBlend {
+  const { axis, timezone, elevation, models: hours } = modelHours(runs);
+  const buckets = buildBuckets(axis, timezone, now);
+  const models: ModelBuckets[] = hours.map(({ model, series }) => ({
+    model,
+    ...totals(series, buckets),
+    temp: model.kind === "deterministic" ? buckets.map((b) => tempRange(series[0], b)) : buckets.map(() => null),
+  }));
 
   const lead = (b: Bucket) => Math.max(0, (b.mid - now) / HOUR);
   const blendOf = (key: "snow" | "swe" | "precip") => buckets.map((b, i) => blendBucket(models, key, i, lead(b)));
@@ -416,7 +432,7 @@ export function buildBlend(runs: ModelRun[], now: number, failed: string[] = [])
 
   return {
     timezone,
-    elevationM: reference.elevation,
+    elevationM: elevation,
     days: days.slice(0, 15),
     periods,
     loaded: runs.map((r) => r.key),

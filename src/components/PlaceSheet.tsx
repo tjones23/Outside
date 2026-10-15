@@ -3,105 +3,47 @@
 import { useId, useState, type ReactNode } from "react";
 import { categoryGlyph } from "@/lib/categories";
 import { textOn } from "@/lib/color";
-import { usePlaceTab, useHydrated, useSavedLocations, type PlaceTab } from "@/lib/client-store";
+import { usePlaceTab, type PlaceTab } from "@/lib/client-store";
 import { formatDateTime, formatMiles } from "@/lib/format";
-import { alertsContaining, NEARBY_RADIUS_MILES, reportsNear, savedLocationStatus } from "@/lib/nearby";
-import type { SavedLocation, StormAlert, StormReport } from "@/lib/types";
-import { AddLocationForm } from "./AddLocationForm";
+import { alertsContaining, NEARBY_RADIUS_MILES, reportsNear } from "@/lib/nearby";
+import { midFt, type Resort } from "@/lib/resorts";
+import type { StormAlert, StormReport } from "@/lib/types";
 import { AlertDetail, ReportDetail } from "./Details";
-import { PageHeader } from "./PageHeader";
+import { PassBadge } from "./PassBadge";
 import { PlaceForecast } from "./PlaceForecast";
 import { SnowBlend } from "./SnowBlend";
-import { useFilteredData } from "./providers/useFilteredData";
+import { SnowPast } from "./SnowPast";
 import { Sheet } from "./ui/Sheet";
 import { tabId, tabPanelId, Tabs } from "./ui/Tabs";
-import { Button, EmptyState, SectionTitle } from "./ui/controls";
+import { SectionTitle } from "./ui/controls";
 
-/** Saved places, each with a one-line storm status (the mobile app's list). */
-export function SavedLocations() {
-  const { locations, remove } = useSavedLocations();
-  const { allAlerts, reports } = useFilteredData();
-  const hydrated = useHydrated();
-  const [adding, setAdding] = useState(false);
-  const [openId, setOpenId] = useState<string | null>(null);
-  const open = locations.find((l) => l.id === openId) ?? null;
-
-  return (
-    <>
-      <PageHeader
-        title="Places"
-        subtitle="Saved in this browser only. Open one for its 7-day forecast and 15-day snow blend. Used for the “saved place” notification."
-        actions={
-          <Button variant="primary" onClick={() => setAdding(true)}>
-            Add place
-          </Button>
-        }
-      />
-
-      {!hydrated ? null : locations.length === 0 ? (
-        <EmptyState title="No saved places">
-          Save home, work or family to see at a glance when a warning covers them or storms were reported nearby.
-        </EmptyState>
-      ) : (
-        <ul className="divide-y divide-line-soft overflow-hidden rounded-2xl border border-line bg-surface">
-          {locations.map((loc) => {
-            const status = savedLocationStatus(loc, allAlerts, reports);
-            return (
-              <li key={loc.id}>
-                <button
-                  type="button"
-                  onClick={() => setOpenId(loc.id)}
-                  className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-surface-2"
-                >
-                  <span className="min-w-0 flex-1">
-                    <span className="block font-medium">{loc.name}</span>
-                    <span
-                      className={`block text-sm ${
-                        status.tone === "reports" ? "text-watch" : status.tone === "quiet" ? "text-muted-dim" : ""
-                      }`}
-                      style={status.color ? { color: status.color } : undefined}
-                    >
-                      {status.label}
-                    </span>
-                  </span>
-                  <span className="text-muted-dim" aria-hidden="true">
-                    ›
-                  </span>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-
-      {adding && <AddLocationForm onClose={() => setAdding(false)} />}
-      {open && (
-        <LocationDetail
-          location={open}
-          alerts={allAlerts}
-          reports={reports}
-          onRemove={() => {
-            remove(open.id);
-            setOpenId(null);
-          }}
-          onClose={() => setOpenId(null)}
-        />
-      )}
-    </>
-  );
+export interface PlacePoint {
+  name: string;
+  lat: number;
+  lon: number;
 }
 
-function LocationDetail({
-  location,
+const feet = (ft: number) => `${ft.toLocaleString()} ft`;
+
+/**
+ * One place, opened: active alerts pinned on top, then the 7-day forecast,
+ * snow (past, on the ground, and the 15-day blend) and nearby storm reports
+ * as tabs. Used for saved places, where you are, and ski resorts.
+ */
+export function PlaceSheet({
+  place,
+  resort,
   alerts,
   reports,
-  onRemove,
+  actions,
   onClose,
 }: {
-  location: SavedLocation;
+  place: PlacePoint;
+  /** Set for a ski resort, saved or not. */
+  resort?: Resort | null;
   alerts: StormAlert[];
   reports: StormReport[];
-  onRemove: () => void;
+  actions?: ReactNode;
   onClose: () => void;
 }) {
   const [alert, setAlert] = useState<StormAlert | null>(null);
@@ -113,7 +55,7 @@ function LocationDetail({
     setSeen((prev) => (prev.has(next) ? prev : new Set(prev).add(next)));
   };
   const [report, setReport] = useState<StormReport | null>(null);
-  const point: [number, number] = [location.lat, location.lon];
+  const point: [number, number] = [place.lat, place.lon];
   const here = alertsContaining(alerts, point);
   const near = reportsNear(reports, point);
 
@@ -121,18 +63,31 @@ function LocationDetail({
   if (report) return <ReportDetail report={report} onClose={() => setReport(null)} />;
 
   return (
-    <Sheet
-      title={location.name}
-      onClose={onClose}
-      actions={
-        <Button variant="danger" onClick={onRemove} className="px-3 py-1">
-          Remove
-        </Button>
-      }
-    >
-      <p className="text-xs text-muted-dim">
-        {location.lat.toFixed(3)}, {location.lon.toFixed(3)}
-      </p>
+    <Sheet title={place.name} onClose={onClose} actions={actions}>
+      {resort ? (
+        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-dim">
+          <PassBadge pass={resort.pass} />
+          {resort.baseFt !== null && resort.topFt !== null && (
+            <span>
+              {feet(resort.baseFt)} – {feet(resort.topFt)}
+            </span>
+          )}
+          {resort.website && (
+            <a
+              href={resort.website}
+              target="_blank"
+              rel="noreferrer noopener"
+              className="underline underline-offset-2 hover:text-text"
+            >
+              Resort website ↗
+            </a>
+          )}
+        </p>
+      ) : (
+        <p className="text-xs text-muted-dim">
+          {place.lat.toFixed(3)}, {place.lon.toFixed(3)}
+        </p>
+      )}
 
       <SectionTitle>Active alerts here</SectionTitle>
       {here.length === 0 ? (
@@ -176,20 +131,22 @@ function LocationDetail({
         onChange={choose}
         tabs={[
           { value: "forecast", label: "7-day" },
-          { value: "snow", label: "15-day snow" },
+          { value: "snow", label: "Snow" },
           { value: "reports", label: near.length > 0 ? `Reports (${near.length})` : "Reports" },
         ]}
         className="sticky -top-4 z-10 -mx-5 mt-5 border-b border-line-soft bg-surface px-5 py-2"
       />
 
       {/* Each tab mounts the first time it's opened and stays mounted, so
-          switching back is instant and the snow blend's eleven model requests
-          only go out for someone who looks at it. */}
+          switching back is instant and the snow tab's model requests only go
+          out for someone who looks at it. */}
       <TabPanel ids={ids} value="forecast" tab={tab} seen={seen}>
-        <PlaceForecast lat={location.lat} lon={location.lon} />
+        <PlaceForecast lat={place.lat} lon={place.lon} />
       </TabPanel>
       <TabPanel ids={ids} value="snow" tab={tab} seen={seen}>
-        <SnowBlend lat={location.lat} lon={location.lon} />
+        <SnowPast lat={place.lat} lon={place.lon} elevationFt={resort ? midFt(resort) : null} />
+        <SectionTitle>Next 15 days</SectionTitle>
+        <SnowBlend lat={place.lat} lon={place.lon} />
       </TabPanel>
       <TabPanel ids={ids} value="reports" tab={tab} seen={seen}>
         <p className="mb-1 text-xs text-muted-dim">Storm reports within {NEARBY_RADIUS_MILES} miles, matching your filters.</p>

@@ -53,7 +53,17 @@ const SOURCES = [
   {
     name: "Open-Meteo",
     href: "https://open-meteo.com/",
-    what: "Point forecasts from the weather models behind each saved place's 15-day snow blend — see below. Free for non-commercial use; data CC BY 4.0. Each model is refreshed about as often as it runs: hourly for HRRR, HRDPS and NBM, every few hours for the rest.",
+    what: "Point forecasts from the weather models behind each place's 15-day snow blend — see below — and their last 16 days for the place's recent snow. Free for non-commercial use; data CC BY 4.0. Each model is refreshed about as often as it runs: hourly for HRRR, HRDPS and NBM, every few hours for the rest.",
+  },
+  {
+    name: "USDA NRCS SNOTEL",
+    href: "https://www.nrcs.usda.gov/resources/data-and-reports/snow-and-water-interactive-map",
+    what: "Measured snow depth and snow water from about 900 automated stations in the western mountains, many on or beside ski areas. The nearest station within 20 miles stands in for a resort's base depth — resorts publish their own reports only through paid feeds — and its daily depth gains are the measured side of a place's last 15 days. Refreshed every 30 minutes.",
+  },
+  {
+    name: "OpenSkiMap",
+    href: "https://openskimap.org/",
+    what: "The ski resort list: every operating, lift-served US ski area mapped in OpenStreetMap (© OpenStreetMap contributors, ODbL), with its height range. Which take the Epic or Ikon pass is kept by hand for each season. Built into the site, not fetched live.",
   },
   {
     name: "NIFC — Wildland Fire Interagency Geospatial Services",
@@ -127,6 +137,13 @@ export default function AboutPage() {
             The models are then averaged, each weighted by how well it does at that range. The weights are
             Outside&rsquo;s own starting point, not tuned against observations. OpenSnow&rsquo;s PEAKS model,
             trained on years of past storms, and its forecasters&rsquo; judgment aren&rsquo;t reproduced here.
+          </p>
+          <p className="mb-3">
+            The last 15 days work the same way: HRRR, NBM, ECMWF IFS and GFS&rsquo;s own recent hours go
+            through the same rain/snow split and snow ratio, weighted as the blend weights them at the start of a
+            forecast. Beside them is what the nearest SNOTEL station measured: its depth gains day to day, counted
+            only when its snow pillow gained water too or the gain is too big to be sensor noise. Settling makes
+            those run low after a big storm.
           </p>
           <ul className="space-y-2">
             {BLEND_MODELS.map((m) => (

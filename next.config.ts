@@ -59,6 +59,13 @@ const nextConfig: NextConfig = {
     modelsHourly: { stale: MINUTE, revalidate: HOUR, expire: 3 * HOUR },
     modelsGlobal: { stale: MINUTE, revalidate: 3 * HOUR, expire: 9 * HOUR },
     modelsEnsemble: { stale: MINUTE, revalidate: 6 * HOUR, expire: 12 * HOUR },
+    // The models' recent past for the 15-day hindcast: its newest hours
+    // change as each run lands, the rest hardly at all.
+    modelsPast: { stale: MINUTE, revalidate: HOUR, expire: 6 * HOUR },
+    // SNOTEL stations report hourly and NRCS posts the readings within the hour.
+    snotel: { stale: MINUTE, revalidate: 30 * MINUTE, expire: 3 * HOUR },
+    // The SNOTEL network itself: a station is added or retired a few times a year.
+    snotelStations: { stale: HOUR, revalidate: DAY, expire: 7 * DAY },
     // Place names don't move. Long caching is also what Nominatim's usage
     // policy asks of every client.
     geocode: { stale: MINUTE, revalidate: 30 * DAY, expire: 90 * DAY },

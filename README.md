@@ -48,6 +48,8 @@ Service and Nominatim, both of which ask for one. It defaults to this repo.
 | [NOAA HMS](https://www.ospo.noaa.gov/products/land/hms.html) | Smoke plumes by density, today's (UTC) analysis or yesterday's until today's is drawn | 30 min, while on |
 | [EPA AirNow](https://www.airnow.gov/) hourly files (`files.airnowtech.org`) | Each monitor's AQI (worst of PM2.5, ozone, PM10, NO₂), newest published hour, US and Canada | 15 min, while on |
 | [Esri Dark Gray Canvas](https://www.esri.com/) | Basemap and labels | — |
+| [Open-Meteo](https://open-meteo.com/) forecast API, `past_days` | A place's last 15 days of snow: HRRR, NBM, ECMWF IFS, GFS, through the blend's snow ratio | 1 h, on opening a place |
+| [USDA NRCS AWDB](https://wcc.sc.egov.usda.gov/awdbRestApi/swagger-ui/index.html) (SNOTEL) | Measured snow depth and water: every station's latest depth for the lists, and the nearest station's last 15 days for a place | 30 min (station list: 1 day) |
 | [Nominatim](https://nominatim.org/) | Place search when saving a location | on submit only |
 
 ## Pages
@@ -63,11 +65,17 @@ Service and Nominatim, both of which ask for one. It defaults to this repo.
 - **Alerts** — every alert, filtered by hazard family (severe, tropical,
   flood, coastal, heat, winter, wind, fire, marine, other) and tier (warning,
   watch, advisory, statement), by recency, severity or distance.
-- **Places** — saved places, each with a one-line status; open one for the
-  warnings covering it, then tabs for its 7-day NWS forecast (snow and
-  precipitation amounts per day), a 15-day snow blend across eleven weather
-  models with each day's range, and the reports within 50 miles. The last
-  tab used is remembered in the browser.
+- **Places** — two tabs. *Favorites*: where you are, pinned on top, then
+  saved places in your own order, each with a one-line status and the
+  nearest SNOTEL snow depth. *Ski resorts*: every lift-served ski area in the
+  state you're in (or one you pick), nearest first or in your own order,
+  filtered by name and by Epic / Ikon / independent; star one to add it to
+  favorites. Open any place for the warnings covering it, then tabs for its
+  7-day NWS forecast (snow and precipitation amounts per day), snow (depth
+  on the ground from the nearest SNOTEL, the last 15 days modeled and
+  measured, and a 15-day blend across eleven weather models with each day's
+  range), and the reports within 50 miles. The last tab used is remembered
+  in the browser.
 - **Settings** — notifications for new warnings at your places, or anywhere.
 
 ## Architecture
@@ -82,6 +90,9 @@ src/lib/               pure, framework-free, unit-tested
   openmeteo.ts         the blend's models, their weights by lead time, Open-Meteo parsing
   snow-ratio.ts        rain/snow split (wet-bulb, warm layer) and Kuchera snow ratio
   snow-blend.ts        per-model snow → half-day totals → weighted blend and ranges
+  snow-past.ts         the models' last 15 days through the same snow ratio
+  snotel.ts            SNOTEL stations, depths, nearest station, measured new snow
+  resorts.ts           ski resorts: which state you're in, filter, sort, custom order
   reports.ts           SPC CSV → StormReport; convective days (12Z–12Z)
   outlook.ts           SPC / WPC outlook GeoJSON → features + hatch lines
   mrms.ts              MRMS GRIB2 (PNG-packed) → rain/snow radar tiles
@@ -96,7 +107,7 @@ src/lib/               pure, framework-free, unit-tested
   client-store.ts      filters, places, settings — localStorage, per browser
   sources/upstream.ts  every upstream request (uncached, used by scripts too)
   sources/cached.ts    the same behind `use cache` + named cacheLife profiles
-src/app/api/*          alerts, reports, outlook, radar, tropical, forecast, point-forecast, snow-blend, fires, hotspots, smoke, air, geocode — polled by the page
+src/app/api/*          alerts, reports, outlook, radar, tropical, forecast, point-forecast, snow-blend, snow-past, snow-depth, fires, hotspots, smoke, air, geocode — polled by the page
 src/components/        UI; the map is hosted in the root layout (see MapHost)
 scripts/               launchers' shared shell, lid-hold registry, source check
 ```
@@ -229,4 +240,5 @@ Center. Excessive rainfall: NOAA Weather Prediction Center. Radar: NOAA MRMS.
 Future radar: NOAA HRRR via the Iowa Environmental Mesonet. Wildfires and
 perimeters: NIFC WFIGS. Hotspots: NASA FIRMS (VIIRS) via Esri Living Atlas.
 Smoke: NOAA NESDIS Hazard Mapping System. Air quality: EPA AirNow. Map tiles: Esri, HERE, Garmin, © OpenStreetMap
-contributors. Place search: Nominatim, © OpenStreetMap contributors.
+contributors. Place search: Nominatim, © OpenStreetMap contributors. Snow depth:
+USDA NRCS SNOTEL. Ski resorts: OpenSkiMap, © OpenStreetMap contributors (ODbL).

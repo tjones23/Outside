@@ -1,3 +1,5 @@
+import type { SnotelDepth, SnotelReport } from "./snotel";
+
 /**
  * The vocabulary Outside speaks.
  *
@@ -220,6 +222,8 @@ export interface SavedLocation {
   lon: number;
   /** Unix ms. */
   addedAt: number;
+  /** Set when it was saved from the ski resort list. */
+  resortId?: string;
 }
 
 /** One NWS forecast period ("Tonight", "Wednesday"), with the grid's amounts over its hours. */
@@ -322,6 +326,44 @@ export interface SnowBlend {
   /** `BLEND_MODELS` keys that answered, and that didn't. */
   loaded: string[];
   failed: string[];
+}
+
+/** The models' snow over some stretch of the past, inches. */
+export interface PastSpan {
+  /** Null unless the hindcast covers all of it. */
+  snowIn: number | null;
+  /** Lowest and highest single model. */
+  lowIn: number | null;
+  highIn: number | null;
+  models: BlendModelTotal[];
+}
+
+/** A 6 AM–6 AM day of the hindcast. */
+export interface PastDay extends PastSpan {
+  date: string;
+  /** Today's row, still going. */
+  partial: boolean;
+  /** Liquid precipitation, inches. */
+  precipIn: number | null;
+}
+
+/** The `/api/snow-past` payload: what the models say fell, and what the nearest SNOTEL measured. */
+export interface SnowPast {
+  timezone: string;
+  elevationM: number | null;
+  /** Oldest first, up to 15 plus today's. */
+  days: PastDay[];
+  /** "Last 5 days", "6–10 days ago", "11–15 days ago", counted back from now. */
+  periods: (PastSpan & { label: string })[];
+  loaded: string[];
+  failed: string[];
+  /** Null when there's no station near, or SNOTEL is down. */
+  snotel: SnotelReport | null;
+}
+
+/** The `/api/snow-depth` payload. */
+export interface SnowDepths {
+  stations: SnotelDepth[];
 }
 
 export interface GeocodeResult {

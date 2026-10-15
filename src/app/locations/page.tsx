@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
 import { PageBody } from "@/components/PageHeader";
-import { SavedLocations } from "@/components/SavedLocations";
+import { Places } from "@/components/Places";
 
 export const metadata: Metadata = { title: "Places" };
 
 export default function LocationsPage() {
   return (
     <PageBody>
-      <SavedLocations />
+      <Places />
     </PageBody>
   );
 }

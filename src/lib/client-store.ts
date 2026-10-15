@@ -3,6 +3,7 @@
 import { useCallback, useSyncExternalStore } from "react";
 import { DEFAULT_FILTERS, normalizeFilters, CATEGORY_KEY } from "./filters";
 import { newId } from "./id";
+import { SKI_PASSES, type ResortSort, type SkiPass } from "./resorts";
 import { DEFAULT_THEME_PREFERENCE, parseThemePreference, THEME_STORAGE_KEY, type ThemePreference } from "./theme";
 import type { AlertGroup, FilterSettings, NotificationSettings, SavedLocation, StormCategory } from "./types";
 
@@ -24,6 +25,8 @@ const FILTERS_KEY = `${PREFIX}:filters:v1`;
 const LOCATIONS_KEY = `${PREFIX}:locations:v1`;
 const NOTIFY_KEY = `${PREFIX}:notify:v1`;
 const PLACE_TAB_KEY = `${PREFIX}:place-tab:v1`;
+const PLACES_VIEW_KEY = `${PREFIX}:places-view:v1`;
+const RESORT_PREFS_KEY = `${PREFIX}:resort-prefs:v1`;
 // v2: every NWS warning, not just tornado and severe thunderstorm. A new key
 // re-records the baseline, so the heat, flood and coastal warnings already in
 // effect the first time this version runs don't all notify at once.
@@ -163,6 +166,7 @@ function parseLocations(value: unknown): SavedLocation[] {
         lat: r.lat,
         lon: r.lon,
         addedAt: typeof r.addedAt === "number" ? r.addedAt : 0,
+        ...(typeof r.resortId === "string" ? { resortId: r.resortId } : {}),
       },
     ];
   });
@@ -175,13 +179,14 @@ function readLocations(): SavedLocation[] {
 export function useSavedLocations() {
   const locations = useStored(LOCATIONS_KEY, parseLocations, EMPTY_LOCATIONS);
 
-  const add = useCallback((name: string, lat: number, lon: number): SavedLocation => {
+  const add = useCallback((name: string, lat: number, lon: number, resortId?: string): SavedLocation => {
     const location: SavedLocation = {
       id: newId(),
       name: name.trim() || "Saved place",
       lat,
       lon,
       addedAt: Date.now(),
+      ...(resortId ? { resortId } : {}),
     };
     persist(LOCATIONS_KEY, [...readLocations(), location]);
     return location;
@@ -203,7 +208,18 @@ export function useSavedLocations() {
     );
   }, []);
 
-  return { locations, add, remove, rename };
+  /** One place up or down the list. */
+  const move = useCallback((id: string, delta: -1 | 1) => {
+    const list = readLocations();
+    const i = list.findIndex((l) => l.id === id);
+    const j = i + delta;
+    if (i < 0 || j < 0 || j >= list.length) return;
+    const next = [...list];
+    [next[i], next[j]] = [next[j], next[i]];
+    persist(LOCATIONS_KEY, next);
+  }, []);
+
+  return { locations, add, remove, rename, move };
 }
 
 // --- Notification settings --------------------------------------------------
@@ -241,6 +257,62 @@ export function usePlaceTab() {
   const tab = useStored(PLACE_TAB_KEY, parsePlaceTab, "forecast");
   const setTab = useCallback((next: PlaceTab) => persist(PLACE_TAB_KEY, next), []);
   return { tab, setTab };
+}
+
+// --- Places page ---------------------------------------------------------------
+
+export const PLACES_VIEWS = ["favorites", "resorts"] as const;
+export type PlacesView = (typeof PLACES_VIEWS)[number];
+
+function parsePlacesView(value: unknown): PlacesView {
+  return PLACES_VIEWS.includes(value as PlacesView) ? (value as PlacesView) : "favorites";
+}
+
+/** Favorites or ski resorts: the last one looked at. */
+export function usePlacesView() {
+  const view = useStored(PLACES_VIEW_KEY, parsePlacesView, "favorites");
+  const setView = useCallback((next: PlacesView) => persist(PLACES_VIEW_KEY, next), []);
+  return { view, setView };
+}
+
+export interface ResortPrefs {
+  /** A state picked by hand; null follows the viewer's location. */
+  state: string | null;
+  sort: ResortSort;
+  /** Empty shows every pass. */
+  passes: SkiPass[];
+  /** Custom order per state, resort ids. */
+  order: Record<string, string[]>;
+}
+
+const DEFAULT_RESORT_PREFS: ResortPrefs = { state: null, sort: "distance", passes: [], order: {} };
+
+function parseResortPrefs(value: unknown): ResortPrefs {
+  const r = (value ?? {}) as Record<string, unknown>;
+  const order: Record<string, string[]> = {};
+  if (r.order && typeof r.order === "object") {
+    for (const [state, ids] of Object.entries(r.order as Record<string, unknown>)) {
+      if (/^[A-Z]{2}$/.test(state) && Array.isArray(ids)) order[state] = ids.filter((id): id is string => typeof id === "string");
+    }
+  }
+  return {
+    state: typeof r.state === "string" && /^[A-Z]{2}$/.test(r.state) ? r.state : null,
+    sort: r.sort === "custom" ? "custom" : "distance",
+    passes: Array.isArray(r.passes) ? SKI_PASSES.filter((p) => (r.passes as unknown[]).includes(p)) : [],
+    order,
+  };
+}
+
+export function useResortPrefs() {
+  const prefs = useStored(RESORT_PREFS_KEY, parseResortPrefs, DEFAULT_RESORT_PREFS);
+  const update = useCallback((patch: Partial<ResortPrefs>) => {
+    persist(RESORT_PREFS_KEY, { ...readSnapshot(RESORT_PREFS_KEY, parseResortPrefs, DEFAULT_RESORT_PREFS), ...patch });
+  }, []);
+  const setOrder = useCallback((state: string, ids: string[]) => {
+    const current = readSnapshot(RESORT_PREFS_KEY, parseResortPrefs, DEFAULT_RESORT_PREFS);
+    persist(RESORT_PREFS_KEY, { ...current, order: { ...current.order, [state]: ids } });
+  }, []);
+  return { prefs, update, setOrder };
 }
 
 // --- Appearance ------------------------------------------------------------
