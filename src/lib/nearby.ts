@@ -56,7 +56,7 @@ export interface LocationStatus {
  * within 50 mi, else quiet.
  */
 export function savedLocationStatus(
-  location: SavedLocation,
+  location: Pick<SavedLocation, "lat" | "lon">,
   alerts: StormAlert[],
   reports: StormReport[],
 ): LocationStatus {

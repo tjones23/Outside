@@ -4,6 +4,8 @@ import { buildNdfdFrames, forecastProduct, pickNdfdTimes } from "../forecast";
 import { BLEND_MODELS, type ModelRun } from "../openmeteo";
 import { buildDays, type GridAmounts, type PeriodForecast, type PointInfo } from "../point-forecast";
 import { buildBlend } from "../snow-blend";
+import { buildPast } from "../snow-past";
+import { buildReport, nearestStation, type SnotelDepth, type SnotelStation, type StationSeries } from "../snotel";
 import { convectiveDate } from "../reports";
 import { utcDate } from "../smoke";
 import type {
@@ -18,6 +20,7 @@ import type {
   PointForecast,
   ReportsData,
   SnowBlend,
+  SnowPast,
   Ring,
   SmokeData,
   StormAlert,
@@ -44,6 +47,10 @@ import {
   fetchPoint,
   fetchReportDay,
   fetchSmokeDay,
+  fetchSnotelDepths,
+  fetchSnotelStation,
+  fetchSnotelStations,
+  PAST_MODELS,
   fetchTropical,
   fetchWwaOutlines,
   fetchZoneOutline,
@@ -442,4 +449,87 @@ export async function getSnowBlend(lat: number, lon: number, now: number): Promi
     if (!r.ok) console.error(`[outside] ${key} run failed: ${r.error}`);
   }
   return { ok: true, value: buildBlend(runs, now, failed) };
+}
+
+/** One model's last 16 days at a spot. `lat`/`lon` must already be rounded. */
+async function getPastRun(key: string, lat: number, lon: number): Promise<Fetched<ModelRun>> {
+  "use cache";
+  try {
+    const model = PAST_MODELS.find((m) => m.key === key);
+    if (!model) throw new Error(`unknown model ${key}`);
+    const value = await fetchModelRun(model, lat, lon, true);
+    cacheLife("modelsPast");
+    return { ok: true, value };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+async function getSnotelStations(): Promise<Fetched<SnotelStation[]>> {
+  "use cache";
+  try {
+    const value = await fetchSnotelStations();
+    cacheLife("snotelStations");
+    return { ok: true, value };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+/** Every SNOTEL station's latest depth: one entry for everyone's resort lists. */
+export async function getSnowDepths(): Promise<Fetched<SnotelDepth[]>> {
+  "use cache";
+  const stations = await getSnotelStations();
+  if (!stations.ok) return stations;
+  try {
+    const value = await fetchSnotelDepths(stations.value, Date.now());
+    cacheLife("snotel");
+    return { ok: true, value };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+async function getSnotelStation(id: string): Promise<Fetched<{ daily?: StationSeries; hourly?: StationSeries }>> {
+  "use cache";
+  try {
+    const value = await fetchSnotelStation(id, Date.now());
+    cacheLife("snotel");
+    return { ok: true, value };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+/**
+ * A spot's last 15 days of snow: the models' hindcast, and the nearest
+ * SNOTEL station's measurements. Not itself cached: hours are cut at `now`,
+ * and each model and station has its own entry. SNOTEL is a bonus — the
+ * models alone still answer when it's down or there's no station near.
+ * `elevationFt`, when known (a resort's mid-mountain), steers which station.
+ */
+export async function getSnowPast(
+  lat: number,
+  lon: number,
+  elevationFt: number | null,
+  now: number,
+): Promise<Fetched<SnowPast>> {
+  const [results, stations] = await Promise.all([
+    Promise.all(PAST_MODELS.map((m) => getPastRun(m.key, lat, lon))),
+    getSnotelStations(),
+  ]);
+  const runs = results.flatMap((r) => (r.ok ? [r.value] : []));
+  const failed = PAST_MODELS.filter((_, i) => !results[i].ok).map((m) => m.key);
+  if (runs.length === 0) return results[0] as Fetched<SnowPast>;
+  for (const [i, r] of results.entries()) if (!r.ok) console.error(`[outside] past ${PAST_MODELS[i].key} failed: ${r.error}`);
+
+  let snotel: SnowPast["snotel"] = null;
+  if (!stations.ok) console.error(`[outside] SNOTEL stations failed: ${stations.error}`);
+  const near = stations.ok ? nearestStation(stations.value, lat, lon, elevationFt) : null;
+  if (near) {
+    const data = await getSnotelStation(near.station.id);
+    if (data.ok) snotel = buildReport(near.station, near.miles, data.value.daily, data.value.hourly);
+    else console.error(`[outside] SNOTEL ${near.station.id} failed: ${data.error}`);
+  }
+  return { ok: true, value: { ...buildPast(runs, now, failed), snotel } };
 }

@@ -130,17 +130,32 @@ const SURFACE_VARS = ["temperature_2m", "relative_humidity_2m", "precipitation",
 const levelVar = (hPa: number) => `temperature_${hPa}hPa`;
 const DETERMINISTIC_VARS = [...SURFACE_VARS, "surface_pressure", ...COLUMN_LEVELS.map(levelVar)];
 
-function query(model: BlendModel, lat: number, lon: number, hourly: string[]): string {
+function query(model: BlendModel, lat: number, lon: number, hourly: string[], past = false): string {
   return new URLSearchParams({
     latitude: String(roundCoord(lat)),
     longitude: String(roundCoord(lon)),
     hourly: hourly.join(","),
     models: model.id,
-    forecast_days: String(FORECAST_DAYS),
+    ...(past ? { past_days: String(PAST_DAYS), forecast_days: "1" } : { forecast_days: String(FORECAST_DAYS) }),
     timezone: "auto",
     timeformat: "unixtime",
     wind_speed_unit: "ms",
   }).toString();
+}
+
+/** Days of the past the hindcast reaches back: 15 to total, and the start of the oldest 6 AM row. */
+export const PAST_DAYS = 16;
+
+/**
+ * The models the 15-day hindcast reads: the ones that lead the blend's first
+ * hours, plus GFS for a fourth opinion. Ensembles and the AI models only
+ * matter days ahead; their past is no better than these.
+ */
+export const PAST_MODEL_KEYS = ["hrrr", "nbm", "ecmwf", "gfs"] as const;
+
+/** A deterministic model's last `PAST_DAYS` days, through the end of today. */
+export function pastModelUrl(model: BlendModel, lat: number, lon: number): string {
+  return `${FORECAST_API}?${query(model, lat, lon, DETERMINISTIC_VARS, true)}`;
 }
 
 export function modelUrl(model: BlendModel, lat: number, lon: number): string {

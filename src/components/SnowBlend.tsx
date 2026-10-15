@@ -1,6 +1,6 @@
 "use client";
 
-import { formatInches } from "@/lib/format";
+import { formatInches, formatSnow, formatSnowRange } from "@/lib/format";
 import { BLEND_MODELS, OPEN_METEO_ATTRIBUTION } from "@/lib/openmeteo";
 import type { BlendDay, BlendModelTotal, BlendSpan, SnowBlend as SnowBlendData } from "@/lib/types";
 import { usePoll } from "./providers/usePoll";
@@ -17,18 +17,8 @@ function dayLabel(day: BlendDay, index: number): string {
 const shortDate = (date: string) =>
   new Date(`${date}T12:00:00`).toLocaleDateString([], { month: "short", day: "numeric" });
 
-/** "4–13″", or "—" when the models don't reach. */
-function range(span: BlendSpan): string {
-  if (span.lowIn === null || span.highIn === null) return "—";
-  if (span.highIn < 0.05) return "0";
-  return `${span.lowIn < 0.05 ? 0 : Math.round(span.lowIn)}–${Math.max(1, Math.round(span.highIn))}″`;
-}
-
-/** Whole inches past 3″, tenths below — the precision a snow forecast can carry. */
-function snow(inches: number | null): string {
-  if (inches !== null && inches >= 3) return `${Math.round(inches)}″`;
-  return formatInches(inches, 1);
-}
+const range = formatSnowRange;
+const snow = formatSnow;
 
 /**
  * The blend as a bar and the models' spread as a faint track behind it, all

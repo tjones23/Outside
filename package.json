@@ -11,7 +11,8 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "check:sources": "tsx scripts/check-sources.ts",
-    "build:borders": "tsx scripts/build-borders.ts"
+    "build:borders": "tsx scripts/build-borders.ts",
+    "build:resorts": "tsx scripts/build-resorts.ts"
   },
   "dependencies": {
     "leaflet": "^1.9.4",

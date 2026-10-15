@@ -53,3 +53,16 @@ export function formatInches(inches: number | null, decimals: number): string {
   if (inches < step / 2) return `<${step.toFixed(decimals)}″`;
   return `${inches.toFixed(decimals)}″`;
 }
+
+/** Whole inches past 3″, tenths below — the precision a snow amount can carry. */
+export function formatSnow(inches: number | null): string {
+  if (inches !== null && inches >= 3) return `${Math.round(inches)}″`;
+  return formatInches(inches, 1);
+}
+
+/** "4–13″" from the lowest to the highest model, or "—" when the models don't reach. */
+export function formatSnowRange(span: { lowIn: number | null; highIn: number | null }): string {
+  if (span.lowIn === null || span.highIn === null) return "—";
+  if (span.highIn < 0.05) return "0";
+  return `${span.lowIn < 0.05 ? 0 : Math.round(span.lowIn)}–${Math.max(1, Math.round(span.highIn))}″`;
+}

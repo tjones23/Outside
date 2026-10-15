@@ -21,6 +21,9 @@ import {
   fetchOutlook,
   fetchPointForecast,
   fetchSnowBlend,
+  fetchSnowPast,
+  fetchSnotelDepths,
+  fetchSnotelStations,
   fetchReportDay,
   fetchSmoke,
   fetchTropical,
@@ -178,6 +181,19 @@ async function main(): Promise<void> {
     const next5 = blend.periods[0];
     const failed = blend.failed.length > 0 ? `, failed: ${blend.failed.join(", ")}` : "";
     return `${blend.loaded.length}/${blend.loaded.length + blend.failed.length} models, next 5 days ${next5?.snowIn ?? "?"}″${failed}`;
+  });
+
+  await check("Open-Meteo past + SNOTEL (Alta)", async () => {
+    const past = await fetchSnowPast(40.5884, -111.6386, Date.now());
+    const last5 = past.periods[0];
+    const station = past.snotel ? `, ${past.snotel.station.name} ${past.snotel.depthIn ?? "?"}″ deep` : ", no SNOTEL";
+    return `${past.loaded.length} models, last 5 days ${last5?.snowIn ?? "?"}″${station}`;
+  });
+
+  await check("SNOTEL latest depths", async () => {
+    const stations = await fetchSnotelStations();
+    const depths = await fetchSnotelDepths(stations, Date.now());
+    return `${depths.length}/${stations.length} stations reporting, ${depths.filter((d) => d.depthIn > 0).length} with snow`;
   });
 
   for (const product of ["PrecipFlag", "SeamlessHSR"] as MrmsProduct[]) {

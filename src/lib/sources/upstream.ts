@@ -22,7 +22,7 @@ import {
 } from "../forecast";
 import { nominatimUrl, parseNominatim } from "../geocode";
 import { mrmsFileUrl, type MrmsProduct } from "../mrms";
-import { BLEND_MODELS, modelUrl, parseModelRun, type BlendModel, type ModelRun } from "../openmeteo";
+import { BLEND_MODELS, modelUrl, parseModelRun, PAST_MODEL_KEYS, pastModelUrl, type BlendModel, type ModelRun } from "../openmeteo";
 import { buildOutlook } from "../outlook";
 import {
   buildDays,
@@ -38,6 +38,20 @@ import {
 import { createRateLimiterState, recordHit } from "../rate-limit";
 import { parseSpcCsv, reportsUrl } from "../reports";
 import { buildBlend } from "../snow-blend";
+import { buildPast } from "../snow-past";
+import {
+  buildDepths,
+  buildReport,
+  latestDepthsUrl,
+  nearestStation,
+  parseData,
+  parseStations,
+  stationDataUrl,
+  stationsUrl,
+  type SnotelDepth,
+  type SnotelStation,
+  type StationSeries,
+} from "../snotel";
 import { parseSmokeKml, smokeUrl, sortPlumes, utcDate } from "../smoke";
 import {
   layerQueryUrl,
@@ -68,6 +82,7 @@ import type {
   PointForecast,
   Ring,
   SnowBlend,
+  SnowPast,
   SmokeData,
   StormAlert,
   StormReport,
@@ -484,8 +499,8 @@ const openMeteoBudget = createRateLimiterState();
 const OPEN_METEO_TIMEOUT_MS = 30_000;
 
 /** One model's run for a spot. Ensemble answers are large, so this waits longer than other feeds. */
-export async function fetchModelRun(model: BlendModel, lat: number, lon: number): Promise<ModelRun> {
-  const url = modelUrl(model, lat, lon);
+export async function fetchModelRun(model: BlendModel, lat: number, lon: number, past = false): Promise<ModelRun> {
+  const url = past ? pastModelUrl(model, lat, lon) : modelUrl(model, lat, lon);
   if (!recordHit(openMeteoBudget, "*", Date.now(), OPEN_METEO_DAY_MS, OPEN_METEO_DAILY_REQUESTS)) {
     throw new UpstreamError(url, null, "Open-Meteo: this server's daily request budget is used up");
   }
@@ -514,6 +529,73 @@ export async function fetchSnowBlend(lat: number, lon: number, now: number): Pro
   const failed = BLEND_MODELS.filter((_, i) => results[i].status === "rejected").map((m) => m.key);
   if (runs.length === 0) throw (results[0] as PromiseRejectedResult).reason;
   return buildBlend(runs, now, failed);
+}
+
+// --- Past snow (Open-Meteo hindcast + SNOTEL) ----------------------------------------
+
+export const PAST_MODELS = PAST_MODEL_KEYS.map((key) => BLEND_MODELS.find((m) => m.key === key)!);
+
+/** Per-visitor and site-wide ceilings on past-snow lookups; each is up to four Open-Meteo requests and two to SNOTEL. */
+const PAST_VISITOR_WINDOW_MS = 10 * 60 * 1000;
+const PAST_VISITOR_MAX = 30;
+const PAST_GLOBAL_WINDOW_MS = 60 * 60 * 1000;
+const PAST_GLOBAL_MAX = 300;
+const pastVisitorLimiter = createRateLimiterState();
+const pastGlobalLimiter = createRateLimiterState();
+
+export function snowPastAllowed(visitorKey: string, now = Date.now()): boolean {
+  const global = recordHit(pastGlobalLimiter, "*", now, PAST_GLOBAL_WINDOW_MS, PAST_GLOBAL_MAX);
+  const visitor = recordHit(pastVisitorLimiter, visitorKey, now, PAST_VISITOR_WINDOW_MS, PAST_VISITOR_MAX);
+  return global && visitor;
+}
+
+/** AWDB answers for every station at once are slow; give them as long as Open-Meteo's ensembles. */
+const SNOTEL_TIMEOUT_MS = 30_000;
+
+/** Every active SNOTEL station. */
+export async function fetchSnotelStations(): Promise<SnotelStation[]> {
+  const response = await get(stationsUrl(), "application/json", SNOTEL_TIMEOUT_MS);
+  return parseStations(await response.json());
+}
+
+/** Every station's latest depth. A state that fails is left out; all failing is an error. */
+export async function fetchSnotelDepths(stations: SnotelStation[], now: number): Promise<SnotelDepth[]> {
+  const states = [...new Set(stations.map((s) => s.id.split(":")[1]))];
+  const results = await Promise.allSettled(
+    states.map(async (state) => {
+      const response = await get(latestDepthsUrl(state, now), "application/json", SNOTEL_TIMEOUT_MS);
+      return parseData(await response.json());
+    }),
+  );
+  const data = new Map(results.flatMap((r) => (r.status === "fulfilled" ? [...r.value] : [])));
+  if (data.size === 0 && results.length > 0) throw (results.find((r) => r.status === "rejected") as PromiseRejectedResult).reason;
+  return buildDepths(stations, data);
+}
+
+/** One station's last 17 midnight readings and last day of hourly ones, depth and water. */
+export async function fetchSnotelStation(id: string, now: number): Promise<{ daily?: StationSeries; hourly?: StationSeries }> {
+  const [daily, hourly] = await Promise.all(
+    (["DAILY", "HOURLY"] as const).map(async (duration) => {
+      const response = await get(stationDataUrl(id, duration, now), "application/json");
+      return parseData(await response.json()).get(id);
+    }),
+  );
+  return { daily, hourly };
+}
+
+/** A spot's past snow, uncached — for `check:sources`. */
+export async function fetchSnowPast(lat: number, lon: number, now: number): Promise<SnowPast> {
+  const results = await Promise.allSettled(PAST_MODELS.map((m) => fetchModelRun(m, lat, lon, true)));
+  const runs = results.flatMap((r) => (r.status === "fulfilled" ? [r.value] : []));
+  const failed = PAST_MODELS.filter((_, i) => results[i].status === "rejected").map((m) => m.key);
+  if (runs.length === 0) throw (results[0] as PromiseRejectedResult).reason;
+  const near = nearestStation(await fetchSnotelStations(), lat, lon, null);
+  let snotel = null;
+  if (near) {
+    const { daily, hourly } = await fetchSnotelStation(near.station.id, now);
+    snotel = buildReport(near.station, near.miles, daily, hourly);
+  }
+  return { ...buildPast(runs, now, failed), snotel };
 }
 
 /**
