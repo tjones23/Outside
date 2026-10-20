@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { box } from "./test-helpers";
-import { keepIds, midFt, moveInOrder, queryResorts, stateAt, type Resort, type ResortQuery } from "./resorts";
+import type { SavedLocation } from "./types";
+import { keepIds, midFt, relinkFavorites, moveInOrder, queryResorts, stateAt, type Resort, type ResortQuery } from "./resorts";
 
 const resort = (id: string, extra: Partial<Resort> = {}): Resort => ({
   id,
@@ -126,5 +127,55 @@ describe("keepIds", () => {
   it("keeps ids that didn't change", () => {
     const same = at("same", "Brighton Resort", 40.6, -111.58);
     expect(keepIds([same], [same]).resorts).toEqual([same]);
+  });
+});
+
+describe("relinkFavorites", () => {
+  const RESORTS = [
+    resort("alta-new", { name: "Alta Ski Area", lat: 40.574, lon: -111.636 }),
+    resort("bird", { name: "Snowbird", lat: 40.582, lon: -111.649 }),
+  ];
+  const saved = (id: string, name: string, lat: number, lon: number, resortId?: string): SavedLocation => ({
+    id,
+    name,
+    lat,
+    lon,
+    addedAt: 0,
+    ...(resortId ? { resortId } : {}),
+  });
+
+  it("relinks a favorite whose resort id is gone to the resort it was saved from", () => {
+    const moves = relinkFavorites([saved("s1", "Alta Ski Area", 40.581, -111.625, "alta-old")], RESORTS);
+    expect([...moves]).toEqual([["s1", "alta-new"]]);
+  });
+
+  it("prefers the same name to a nearer neighbor", () => {
+    const moves = relinkFavorites([saved("s1", "Alta Ski Area", 40.581, -111.645, "alta-old")], RESORTS);
+    expect(moves.get("s1")).toBe("alta-new");
+  });
+
+  it("finds a renamed favorite by distance", () => {
+    const moves = relinkFavorites([saved("s1", "My powder day", 40.575, -111.636, "alta-old")], RESORTS);
+    expect(moves.get("s1")).toBe("alta-new");
+  });
+
+  it("doesn't link a second favorite to a resort that already has one, or to its neighbor", () => {
+    const moves = relinkFavorites(
+      [saved("s1", "Alta", 40.574, -111.636, "alta-new"), saved("s2", "Alta Ski Area", 40.575, -111.636, "alta-old")],
+      RESORTS,
+    );
+    expect(moves.size).toBe(0);
+  });
+
+  it("leaves favorites alone when their resort is still there, they aren't resorts, or nothing is close", () => {
+    const moves = relinkFavorites(
+      [
+        saved("s1", "Snowbird", 40.582, -111.649, "bird"),
+        saved("s2", "Home", 40.575, -111.636),
+        saved("s3", "Closed Hill", 41.5, -111.6, "gone"),
+      ],
+      RESORTS,
+    );
+    expect(moves.size).toBe(0);
   });
 });

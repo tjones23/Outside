@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useId, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useMemo, useState, type ReactNode } from "react";
 import { useHydrated, usePlacesView, useSavedLocations, type PlacesView } from "@/lib/client-store";
-import type { Resort } from "@/lib/resorts";
+import { relinkFavorites, type Resort } from "@/lib/resorts";
 import type { SnotelDepth } from "@/lib/snotel";
 import type { LatLng, SnowDepths } from "@/lib/types";
 import { AddLocationForm } from "./AddLocationForm";
@@ -35,7 +35,7 @@ function roundHere(coord: LatLng | null): LatLng | null {
 export function Places() {
   const { view, setView } = usePlacesView();
   const hydrated = useHydrated();
-  const { locations, add, remove, move } = useSavedLocations();
+  const { locations, add, remove, move, relink } = useSavedLocations();
   const { allAlerts, reports } = useFilteredData();
   const location = useLocation();
   const here = roundHere(location.coord);
@@ -44,6 +44,13 @@ export function Places() {
   const needResorts = view === "resorts" || locations.some((l) => l.resortId);
   const data = useResortData(hydrated && needResorts);
   const resortsById = useMemo(() => new Map((data?.resorts ?? []).map((r) => [r.id, r])), [data]);
+
+  // A favorite saved under a resort id the data no longer has gets the resort's new one.
+  useEffect(() => {
+    if (!data) return;
+    const moves = relinkFavorites(locations, data.resorts);
+    if (moves.size > 0) relink(moves);
+  }, [data, locations, relink]);
   const depthsFeed = usePoll<SnowDepths>(hydrated ? "/api/snow-depth" : null, 30 * MINUTE, {
     whenHidden: false,
     refreshToken: 0,

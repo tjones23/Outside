@@ -1,5 +1,5 @@
 import { distanceMiles, polygonContains } from "./geo";
-import type { LatLng, Ring } from "./types";
+import type { LatLng, Ring, SavedLocation } from "./types";
 
 /**
  * US ski resorts for the Places page, from `public/resorts.json` (built by
@@ -164,4 +164,30 @@ export function keepIds(previous: Resort[], next: Resort[]): { resorts: Resort[]
     carried.push([old, r]);
   }
   return { resorts: next.map((r) => (idOf.has(r) ? { ...r, id: idOf.get(r)! } : r)), carried };
+}
+
+/**
+ * Favorites whose resort id is no longer in `resorts`, matched to the resort
+ * they were saved from: a resort of the same name within `SAME_RESORT_MILES`,
+ * or else the nearest one that close (the name may be the viewer's own). A
+ * safety net for ids `keepIds` couldn't carry; a favorite with no resort that
+ * close, or whose resort is already a favorite, is left as it is. Saved place
+ * id → resort id.
+ */
+export function relinkFavorites(saved: SavedLocation[], resorts: Resort[]): Map<string, string> {
+  const ids = new Set(resorts.map((r) => r.id));
+  const linked = new Set(saved.flatMap((l) => (l.resortId && ids.has(l.resortId) ? [l.resortId] : [])));
+  const moves = new Map<string, string>();
+  for (const place of saved) {
+    if (!place.resortId || ids.has(place.resortId)) continue;
+    const best = resorts
+      .map((r) => ({ r, miles: distanceMiles([place.lat, place.lon], [r.lat, r.lon]) }))
+      .filter((c) => c.miles <= SAME_RESORT_MILES)
+      .sort((a, b) => Number(b.r.name === place.name) - Number(a.r.name === place.name) || a.miles - b.miles)[0];
+    // Already a favorite under its new id: two stars on one resort would be wrong either way.
+    if (!best || linked.has(best.r.id)) continue;
+    moves.set(place.id, best.r.id);
+    linked.add(best.r.id);
+  }
+  return moves;
 }
