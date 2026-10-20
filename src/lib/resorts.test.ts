@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { box } from "./test-helpers";
-import { midFt, moveInOrder, queryResorts, stateAt, type Resort, type ResortQuery } from "./resorts";
+import { keepIds, midFt, moveInOrder, queryResorts, stateAt, type Resort, type ResortQuery } from "./resorts";
 
 const resort = (id: string, extra: Partial<Resort> = {}): Resort => ({
   id,
@@ -12,6 +12,7 @@ const resort = (id: string, extra: Partial<Resort> = {}): Resort => ({
   baseFt: 7000,
   topFt: 10000,
   website: null,
+  webcams: null,
   ...extra,
 });
 
@@ -85,5 +86,45 @@ describe("midFt", () => {
     expect(midFt(resort("a"))).toBe(8500);
     expect(midFt(resort("a", { baseFt: null }))).toBe(10000);
     expect(midFt(resort("a", { baseFt: null, topFt: null }))).toBeNull();
+  });
+});
+
+describe("keepIds", () => {
+  const at = (id: string, name: string, lat: number, lon: number, states = ["UT"]) =>
+    resort(id, { name, lat, lon, states });
+
+  it("restores a reissued id by name", () => {
+    const { resorts, carried } = keepIds([at("old", "Alta Ski Area", 40.58, -111.63)], [at("new", "Alta Ski Area", 40.59, -111.64)]);
+    expect(resorts.map((r) => r.id)).toEqual(["old"]);
+    expect(carried).toHaveLength(1);
+  });
+
+  it("restores a renamed and reissued resort that hasn't moved", () => {
+    const { resorts } = keepIds([at("old", "Ski Mystic", 40.58, -111.63)], [at("new", "Deer Mountain", 40.585, -111.63)]);
+    expect(resorts[0].id).toBe("old");
+  });
+
+  it("leaves a new resort alone when the vanished one was elsewhere", () => {
+    const { resorts, carried } = keepIds([at("old", "Closed Hill", 40.58, -111.63)], [at("new", "New Hill", 40.7, -111.63)]);
+    expect(resorts[0].id).toBe("new");
+    expect(carried).toEqual([]);
+  });
+
+  it("needs a shared state", () => {
+    const { resorts } = keepIds([at("old", "Hidden Valley", 38.5, -90.7, ["MO"])], [at("new", "Hidden Valley", 40.0, -79.2, ["PA"])]);
+    expect(resorts[0].id).toBe("new");
+  });
+
+  it("prefers a name match to a nearer neighbor, one id each", () => {
+    const { resorts } = keepIds(
+      [at("alta", "Alta Ski Area", 40.58, -111.63), at("bird", "Snowbird", 40.58, -111.65)],
+      [at("n1", "Snowbird", 40.581, -111.631), at("n2", "Alta Ski Area", 40.58, -111.651)],
+    );
+    expect(resorts.map((r) => r.id)).toEqual(["bird", "alta"]);
+  });
+
+  it("keeps ids that didn't change", () => {
+    const same = at("same", "Brighton Resort", 40.6, -111.58);
+    expect(keepIds([same], [same]).resorts).toEqual([same]);
   });
 });
