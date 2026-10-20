@@ -30,6 +30,8 @@ export interface Resort {
   baseFt: number | null;
   topFt: number | null;
   website: string | null;
+  /** The resort's own webcam page, where we know it. */
+  webcams: string | null;
 }
 
 /** Each state's outline rings, [lat, lon]. */

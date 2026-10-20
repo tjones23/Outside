@@ -12,6 +12,7 @@ const resort = (id: string, extra: Partial<Resort> = {}): Resort => ({
   baseFt: 7000,
   topFt: 10000,
   website: null,
+  webcams: null,
   ...extra,
 });
 

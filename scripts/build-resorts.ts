@@ -100,6 +100,103 @@ const RENAME: Record<string, string> = {
 /** Wrong or missing websites in OpenStreetMap. */
 const WEBSITE: Record<string, string> = {
   Snowbird: "https://www.snowbird.com/",
+  "Palisades Tahoe Alpine Meadows": "https://www.palisadestahoe.com/",
+  "Roundtop Mountain Resort": "https://www.skiroundtop.com/",
+  "Summit West": "https://www.summitatsnoqualmie.com/",
+};
+
+/** Every Vail Resorts mountain keeps its cams at the same path. */
+const VAIL_CAMS = "/the-mountain/mountain-conditions/mountain-cams.aspx";
+
+/**
+ * Each resort's own webcam page, by state and OpenStreetMap name, looked up by
+ * hand: there's no OpenStreetMap tag for it, and resorts don't share a URL
+ * scheme. Epic and Ikon resorts so far; one that isn't here just shows its
+ * website. `npm run check:webcams` finds the ones that have moved.
+ */
+const WEBCAMS: Record<string, string> = {
+  "CA|Bear Mountain": "https://www.bigbearmountainresort.com/webcams",
+  "CA|Heavenly Mountain Resort": `https://www.skiheavenly.com${VAIL_CAMS}`,
+  "CA|June Mountain": "https://www.junemountain.com/mountain-information/live-cams",
+  "CA|Kirkwood Mountain Resort": `https://www.kirkwood.com${VAIL_CAMS}`,
+  "CA|Mammoth Mountain": "https://www.mammothmountain.com/on-the-mountain/mammoth-webcam",
+  "CA|Northstar at Tahoe Resort": `https://www.northstarcalifornia.com${VAIL_CAMS}`,
+  "CA|Palisades Tahoe Alpine Meadows": "https://www.palisadestahoe.com/mountain-information/webcams",
+  "CA|Palisades Tahoe Olympic Valley": "https://www.palisadestahoe.com/mountain-information/webcams",
+  "CA|Sierra-at-Tahoe Ski Resort": "https://sierraattahoe.com/live-cams/",
+  "CA|Snow Summit": "https://www.bigbearmountainresort.com/webcams",
+  "CO|Arapahoe Basin": "https://www.arapahoebasin.com/mountain-cams/",
+  "CO|Aspen Highlands": "https://www.aspensnowmass.com/four-mountains/aspen-highlands/mountain-cams",
+  "CO|Aspen Mountain": "https://www.aspensnowmass.com/four-mountains/aspen-mountain/mountain-cams",
+  "CO|Aspen Snowmass": "https://www.aspensnowmass.com/four-mountains/snowmass/mountain-cams",
+  "CO|Beaver Creek": `https://www.beavercreek.com${VAIL_CAMS}`,
+  "CO|Breckenridge": `https://www.breckenridge.com${VAIL_CAMS}`,
+  "CO|Buttermilk": "https://www.aspensnowmass.com/four-mountains/buttermilk/mountain-cams",
+  "CO|Copper Mountain": "https://www.coppercolorado.com/the-mountain/webcams/",
+  "CO|Crested Butte Mountain Resort": `https://www.skicb.com${VAIL_CAMS}`,
+  "CO|Eldora": "https://www.eldora.com/the-mountain/current-conditions/webcams/",
+  "CO|Keystone": `https://www.keystoneresort.com${VAIL_CAMS}`,
+  "CO|Telluride Ski Area": "https://tellurideskiresort.com/webcams/",
+  "CO|Vail": `https://www.vail.com${VAIL_CAMS}`,
+  "CO|Winter Park Resort": "https://www.winterparkresort.com/the-mountain/mountain-cams",
+  "ID|Schweitzer Mountain Resort": "https://www.schweitzer.com/mountain-info/webcam",
+  "ID|Sun Valley - Bald Mountain": "https://www.sunvalley.com/the-mountain/web-cams",
+  "ID|Sun Valley - Dollar Mountain": "https://www.sunvalley.com/the-mountain/web-cams",
+  "ID|Tamarack Resort": "https://tamarackidaho.com/about/webcams",
+  "IN|Paoli Peaks": `https://www.paolipeaks.com${VAIL_CAMS}`,
+  "MA|Jiminy Peak Resort": "https://www.jiminypeak.com/webcams/",
+  "ME|Sugarloaf": "https://www.sugarloaf.com/mountain-report",
+  "ME|Sunday River": "https://www.sundayriver.com/mountain-report",
+  "MI|Caberfae Peaks": "https://caberfaepeaks.com/live-cam-caberfae/",
+  "MI|Mt Brighton": `https://www.mtbrighton.com${VAIL_CAMS}`,
+  "MN|Afton Alps": `https://www.aftonalps.com${VAIL_CAMS}`,
+  "MN|Buck Hill": "https://buckhill.com/skiing-snowboarding/webcams/",
+  "MN|Lutsen Mountains": "https://www.lutsen.com/mountain-info/our-webcam",
+  "MO|Hidden Valley": `https://www.hiddenvalleyski.com${VAIL_CAMS}`,
+  "MO|Snow Creek": `https://www.skisnowcreek.com${VAIL_CAMS}`,
+  "MT|Big Sky Resort": "https://www.bigskyresort.com/current-conditions/webcams",
+  "NH|Attitash Mountain Resort": `https://www.attitash.com${VAIL_CAMS}`,
+  "NH|Cranmore Mountain Resort": "https://cranmore.com/cams",
+  "NH|Crotched Mountain Ski & Ride": `https://www.crotchedmtn.com${VAIL_CAMS}`,
+  "NH|Loon Mountain Resort": "https://www.loonmtn.com/mountain-report",
+  "NH|Mount Sunapee": `https://www.mountsunapee.com${VAIL_CAMS}`,
+  "NH|Wildcat Mountain": `https://www.skiwildcat.com${VAIL_CAMS}`,
+  "NM|Taos Ski Valley": "https://www.skitaos.com/weather",
+  "NY|Hunter Mountain": `https://www.huntermtn.com${VAIL_CAMS}`,
+  "OH|Alpine Valley": `https://www.alpinevalleyohio.com${VAIL_CAMS}`,
+  "OH|Boston Mills Ski Resort": `https://www.bmbw.com${VAIL_CAMS}`,
+  "OH|Brandywine Ski Resort": `https://www.bmbw.com${VAIL_CAMS}`,
+  "OH|Mad River Mountain": `https://www.skimadriver.com${VAIL_CAMS}`,
+  "OR|Mt. Bachelor": "https://www.mtbachelor.com/the-mountain/webcams/",
+  "PA|Big Boulder Ski Resort Area": `https://www.jfbb.com${VAIL_CAMS}`,
+  "PA|Hidden Valley Resort": `https://www.hiddenvalleyresort.com${VAIL_CAMS}`,
+  "PA|Jack Frost Mountain Resort": `https://www.jfbb.com${VAIL_CAMS}`,
+  "PA|Laurel Mountain Ski Resort": `https://www.laurelmountainski.com${VAIL_CAMS}`,
+  "PA|Liberty Mountain Resort": `https://www.libertymountainresort.com${VAIL_CAMS}`,
+  "PA|Roundtop Mountain Resort": `https://www.skiroundtop.com${VAIL_CAMS}`,
+  "PA|Seven Springs Mountain Resort": `https://www.7springs.com${VAIL_CAMS}`,
+  "PA|Whitetail Resort": `https://www.skiwhitetail.com${VAIL_CAMS}`,
+  "UT|Alta Ski Area": "https://www.alta.com/weather",
+  "UT|Brighton Resort": "https://www.brightonresort.com/conditions",
+  "UT|Deer Valley Resort": "https://www.deervalley.com/explore-the-mountain/webcams",
+  "UT|Park City Mountain Resort": `https://www.parkcitymountain.com${VAIL_CAMS}`,
+  "UT|Snowbasin Resort": "https://www.snowbasin.com/the-mountain/web-cams/",
+  "UT|Snowbird": "https://www.snowbird.com/the-mountain/webcams/view-all-webcams/",
+  "UT|Solitude Mountain Resort": "https://www.solitudemountain.com/mountain-and-village/webcams",
+  "VT|Killington Resort": "https://killington.com/webcams",
+  "VT|Mount Snow": `https://www.mountsnow.com${VAIL_CAMS}`,
+  "VT|Okemo Mountain": `https://www.okemo.com${VAIL_CAMS}`,
+  "VT|Pico Mountain Resort": "https://picomountain.com/webcams",
+  "VT|Stowe Mountain Resort": `https://www.stowe.com${VAIL_CAMS}`,
+  "VT|Sugarbush Resort": "https://www.sugarbush.com/mountain/webcams",
+  "WA|Alpental": "https://www.summitatsnoqualmie.com/webcams",
+  "WA|Crystal Mountain": "https://www.crystalmountainresort.com/the-mountain/mountain-report-and-webcams/webcams",
+  "WA|Stevens Pass": `https://www.stevenspass.com${VAIL_CAMS}`,
+  "WA|Summit West": "https://www.summitatsnoqualmie.com/webcams",
+  "WI|Granite Peak Ski Area": "https://www.skigranitepeak.com/mountain-info/live-web-cams",
+  "WI|Wilmot Mountain": `https://www.wilmotmountain.com${VAIL_CAMS}`,
+  "WY|Jackson Hole Mountain Resort": "https://www.jacksonhole.com/live-mountain-cams",
+  "WY|Snowy Range": "https://snowyrangeski.com/webcams/",
 };
 
 type Position = [number, number];
@@ -155,6 +252,7 @@ async function buildResorts(): Promise<Resort[]> {
     for (const [state, names] of Object.entries(byState)) for (const name of names) passOf.set(`${state}|${name}`, pass);
   }
   const matched = new Set<string>();
+  const camsMatched = new Set<string>();
 
   const resorts: Resort[] = [];
   for (const area of features) {
@@ -168,12 +266,17 @@ async function buildResorts(): Promise<Resort[]> {
     if (p.status !== "operating" || !p.activities.includes("downhill") || !hasRealLift(area)) continue;
 
     let pass: SkiPass = "independent";
+    let webcams: string | null = null;
     for (const state of states) {
       const key = `${state}|${p.name}`;
       const found = passOf.get(key);
       if (found) {
         pass = found;
         matched.add(key);
+      }
+      if (WEBCAMS[key]) {
+        webcams = WEBCAMS[key];
+        camsMatched.add(key);
       }
     }
     const [lon, lat] = center(area.geometry);
@@ -188,11 +291,14 @@ async function buildResorts(): Promise<Resort[]> {
       baseFt: ft(p.statistics?.minElevation),
       topFt: ft(p.statistics?.maxElevation),
       website: WEBSITE[p.name] ?? p.websites?.[0] ?? null,
+      webcams,
     });
   }
 
   const missing = [...passOf.keys()].filter((k) => !matched.has(k));
   if (missing.length > 0) throw new Error(`pass entries that match no resort: ${missing.join(", ")}`);
+  const camsMissing = Object.keys(WEBCAMS).filter((k) => !camsMatched.has(k));
+  if (camsMissing.length > 0) throw new Error(`webcam entries that match no resort: ${camsMissing.join(", ")}`);
   return resorts.sort((a, b) => a.name.localeCompare(b.name));
 }
 

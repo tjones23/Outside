@@ -70,7 +70,8 @@ Service and Nominatim, both of which ask for one. It defaults to this repo.
   nearest SNOTEL snow depth. *Ski resorts*: every lift-served ski area in the
   state you're in (or one you pick), nearest first or in your own order,
   filtered by name and by Epic / Ikon / independent; star one to add it to
-  favorites. Open any place for the warnings covering it, then tabs for its
+  favorites. A resort links to its website and, for Epic and Ikon resorts
+  so far, its webcam page. Open any place for the warnings covering it, then tabs for its
   7-day NWS forecast (snow and precipitation amounts per day), snow (depth
   on the ground from the nearest SNOTEL, the last 15 days modeled and
   measured, and a 15-day blend across eleven weather models with each day's
@@ -131,6 +132,7 @@ npm test               # unit tests
 npm run typecheck
 npm run lint
 npm run check:sources  # hit every upstream, print pass/fail + timings
+npm run check:webcams  # find resort webcam links that have gone 404
 ```
 
 ## Hosting it

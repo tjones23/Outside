@@ -11,6 +11,7 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "check:sources": "tsx scripts/check-sources.ts",
+    "check:webcams": "tsx scripts/check-webcams.ts",
     "build:borders": "tsx scripts/build-borders.ts",
     "build:resorts": "tsx scripts/build-resorts.ts"
   },

@@ -82,6 +82,16 @@ export function PlaceSheet({
               Resort website ↗
             </a>
           )}
+          {resort.webcams && (
+            <a
+              href={resort.webcams}
+              target="_blank"
+              rel="noreferrer noopener"
+              className="underline underline-offset-2 hover:text-text"
+            >
+              Webcams ↗
+            </a>
+          )}
         </p>
       ) : (
         <p className="text-xs text-muted-dim">
