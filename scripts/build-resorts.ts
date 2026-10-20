@@ -369,10 +369,15 @@ function previousResorts(): Resort[] {
 
 async function main(): Promise<void> {
   const [built, states] = await Promise.all([buildResorts(), buildStates()]);
-  const { resorts, carried } = keepIds(previousResorts(), built);
+  const previous = previousResorts();
+  const { resorts, carried } = keepIds(previous, built);
   for (const [old, r] of carried) {
     const renamed = old.name === r.name ? "" : ` (was ${old.name})`;
     console.log(`kept id for ${r.name}${renamed}: OpenSkiMap now calls it ${r.id}`);
+  }
+  const kept = new Set(resorts.map((r) => r.id));
+  for (const old of previous.filter((r) => !kept.has(r.id))) {
+    console.log(`dropped ${old.name} (${old.states.join(", ")}): no resort by that name or within a mile; favorites of it lose their resort`);
   }
   const resortsJson = JSON.stringify({ season: PASS_SEASON, resorts });
   const statesJson = JSON.stringify(states);

@@ -219,7 +219,15 @@ export function useSavedLocations() {
     persist(LOCATIONS_KEY, next);
   }, []);
 
-  return { locations, add, remove, rename, move };
+  /** Point favorites at their resort's new id (saved place id → resort id). */
+  const relink = useCallback((moves: Map<string, string>) => {
+    persist(
+      LOCATIONS_KEY,
+      readLocations().map((l) => (moves.has(l.id) ? { ...l, resortId: moves.get(l.id)! } : l)),
+    );
+  }, []);
+
+  return { locations, add, remove, rename, move, relink };
 }
 
 // --- Notification settings --------------------------------------------------
