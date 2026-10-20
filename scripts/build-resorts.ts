@@ -10,6 +10,9 @@
  * "independent". The script fails if a pass entry matches no resort, so a
  * renamed area in OpenStreetMap is caught here rather than silently dropped.
  *
+ * Resort ids are carried over from the existing `public/resorts.json`, so a
+ * favorite saved under an id survives OpenSkiMap reissuing it.
+ *
  * State outlines are the Census Bureau's 1:10m cartographic boundaries,
  * via us-atlas, simplified.
  *
@@ -17,10 +20,10 @@
  *
  *   npm run build:resorts
  */
-import { writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { feature } from "topojson-client";
 import type { GeometryCollection, Topology } from "topojson-specification";
-import { PASS_SEASON, type Resort, type SkiPass } from "../src/lib/resorts";
+import { keepIds, PASS_SEASON, type Resort, type SkiPass } from "../src/lib/resorts";
 import { stateCode } from "../src/lib/us-states";
 
 const SKI_AREAS = "https://tiles.openskimap.org/geojson/ski_areas.geojson";
@@ -355,8 +358,22 @@ async function buildStates(): Promise<Record<string, [number, number][][]>> {
   return out;
 }
 
+/** The resorts from the last build, whose ids favorites may hold. */
+function previousResorts(): Resort[] {
+  try {
+    return (JSON.parse(readFileSync("public/resorts.json", "utf8")) as { resorts: Resort[] }).resorts;
+  } catch {
+    return [];
+  }
+}
+
 async function main(): Promise<void> {
-  const [resorts, states] = await Promise.all([buildResorts(), buildStates()]);
+  const [built, states] = await Promise.all([buildResorts(), buildStates()]);
+  const { resorts, carried } = keepIds(previousResorts(), built);
+  for (const [old, r] of carried) {
+    const renamed = old.name === r.name ? "" : ` (was ${old.name})`;
+    console.log(`kept id for ${r.name}${renamed}: OpenSkiMap now calls it ${r.id}`);
+  }
   const resortsJson = JSON.stringify({ season: PASS_SEASON, resorts });
   const statesJson = JSON.stringify(states);
   writeFileSync("public/resorts.json", resortsJson + "\n");

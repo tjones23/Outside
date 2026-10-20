@@ -18,7 +18,11 @@ export const PASS_SEASON = "2026–27";
 export const PASS_LABEL: Record<SkiPass, string> = { epic: "Epic", ikon: "Ikon", independent: "Independent" };
 
 export interface Resort {
-  /** OpenSkiMap's id, stable across rebuilds. */
+  /**
+   * OpenSkiMap's id from the first build that saw the resort. Saved favorites
+   * and the viewer's order hold it, so rebuilds keep it even when OpenSkiMap
+   * issues a new one (see `keepIds`).
+   */
   id: string;
   name: string;
   /** Postal codes; more than one for a resort on a state line (Heavenly: CA, NV). */
@@ -115,4 +119,49 @@ export function moveInOrder(ids: string[], id: string, delta: -1 | 1): string[] 
   const next = [...ids];
   [next[i], next[j]] = [next[j], next[i]];
   return next;
+}
+
+/** Miles. A resort whose name changed must be this close to its old self to keep its id. */
+const SAME_RESORT_MILES = 1;
+
+/**
+ * Give rebuilt resorts the ids they had before.
+ *
+ * OpenSkiMap sometimes reissues an area's id (Alta, Snowbird and Gunstock did
+ * in fall 2026), which would orphan favorites saved under the old one. A new
+ * id is matched to a vanished one in the same state by name, or failing that
+ * by being within `SAME_RESORT_MILES` (renamed and reissued at once), nearest
+ * first. Returns the resorts with old ids restored and the pairs carried over.
+ */
+export function keepIds(previous: Resort[], next: Resort[]): { resorts: Resort[]; carried: [Resort, Resort][] } {
+  const nextIds = new Set(next.map((r) => r.id));
+  const previousIds = new Set(previous.map((r) => r.id));
+  const lost = previous.filter((r) => !nextIds.has(r.id));
+  const fresh = next.filter((r) => !previousIds.has(r.id));
+  const shareState = (a: Resort, b: Resort) => a.states.some((s) => b.states.includes(s));
+
+  const pairs = lost
+    .flatMap((old) =>
+      fresh
+        .filter((r) => shareState(old, r))
+        .map((r) => ({
+          old,
+          r,
+          sameName: old.name === r.name,
+          miles: distanceMiles([old.lat, old.lon], [r.lat, r.lon]),
+        })),
+    )
+    .filter((p) => p.sameName || p.miles <= SAME_RESORT_MILES)
+    .sort((a, b) => Number(b.sameName) - Number(a.sameName) || a.miles - b.miles);
+
+  const idOf = new Map<Resort, string>();
+  const used = new Set<Resort>();
+  const carried: [Resort, Resort][] = [];
+  for (const { old, r } of pairs) {
+    if (used.has(old) || idOf.has(r)) continue;
+    used.add(old);
+    idOf.set(r, old.id);
+    carried.push([old, r]);
+  }
+  return { resorts: next.map((r) => (idOf.has(r) ? { ...r, id: idOf.get(r)! } : r)), carried };
 }
