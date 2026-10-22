@@ -10,9 +10,9 @@ import { useOverlay } from "./gl";
 /**
  * State, province and country borders, drawn over radar and warnings.
  *
- * The basemaps have these in their base, but faint and underneath
- * everything — once radar is on they all but disappear. The lines come from
- * `public/borders.json` (built by `scripts/build-borders.ts`).
+ * The basemap has its own, but faint and underneath everything — once radar
+ * is on they all but disappear. The lines come from `public/borders.json`
+ * (built by `scripts/build-borders.ts`).
  */
 
 type Borders = { states: LatLng[][]; countries: LatLng[][] };

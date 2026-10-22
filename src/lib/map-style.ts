@@ -7,7 +7,6 @@ import type {
 } from "maplibre-gl";
 import { EXPLORE_GLYPHS, EXPLORE_TERRAIN_SOURCE, exploreLayers, exploreSources } from "./explore-style";
 import type { Theme } from "./theme";
-import type { Basemap } from "./types";
 
 /**
  * The MapLibre style under Outside's map: a basemap, with slots between its
@@ -55,20 +54,8 @@ function markerLayer(slot: Slot): LayerSpecification {
   return { id: slotMarker(slot), type: "background", layout: { visibility: "none" } };
 }
 
-/** Overlay sources and layers carry this prefix, so a basemap swap keeps them. */
+/** Overlay sources and layers carry this prefix, so a restyle keeps them. */
 export const OVERLAY_PREFIX = "ov:";
-
-/**
- * Esri's Dark Gray and Light Gray Canvas, one per theme: free and keyless
- * with attribution. (CARTO's tiles, the usual choice, now answer every
- * request with an "API key required" placeholder.) Base and labels are
- * separate services, so the labels can sit above radar and warning polygons.
- */
-const ESRI = "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas";
-const ESRI_CANVAS = { dark: "World_Dark_Gray", light: "World_Light_Gray" } as const;
-const ESRI_ATTRIBUTION =
-  'Tiles &copy; <a href="https://www.esri.com/">Esri</a> &mdash; Esri, HERE, Garmin, &copy; OpenStreetMap contributors';
-const ESRI_MAX_NATIVE_ZOOM = 16;
 
 /** The page's `--map-ground`, shown before tiles arrive. */
 const GROUND: Record<Theme, string> = { dark: "#0b0b10", light: "#e3e3e3" };
@@ -81,58 +68,34 @@ const SKY: Record<Theme, SkySpecification> = {
 };
 
 export interface StyleOptions {
-  basemap: Basemap;
   theme: Theme;
-  /** Radar or a forecast animation is on: fade the Explore map's colors. */
+  /** Radar or a forecast animation is on: fade the basemap's colors. */
   muted: boolean;
-  /** Explore only: raise the terrain in 3D (while the map is tilted). */
+  /** Raise the terrain in 3D (while the map is tilted). */
   terrain: boolean;
 }
 
-export function buildStyle({ basemap, theme, muted, terrain }: StyleOptions): StyleSpecification {
-  const ground: LayerSpecification = { id: "ground", type: "background", paint: { "background-color": GROUND[theme] } };
-  const esri = (part: "Base" | "Reference") =>
-    `${ESRI}/${ESRI_CANVAS[theme]}_${part}/MapServer/tile/{z}/{y}/{x}`;
-
-  const explore = basemap === "explore";
-  const base: LayerSpecification[] = explore
-    ? exploreLayers(theme, "base", muted)
-    : [{ id: "esri-base", type: "raster", source: "esri-base" }];
-  const labels: LayerSpecification[] = explore
-    ? exploreLayers(theme, "labels")
-    : [{ id: "esri-labels", type: "raster", source: "esri-labels" }];
-
-  const layers: LayerSpecification[] = [ground, ...base];
+export function buildStyle({ theme, muted, terrain }: StyleOptions): StyleSpecification {
+  const layers: LayerSpecification[] = [
+    { id: "ground", type: "background", paint: { "background-color": GROUND[theme] } },
+    ...exploreLayers(theme, "base", muted),
+  ];
   for (const slot of SLOTS) {
     layers.push(markerLayer(slot));
-    if (slot === "labels") layers.push(...labels);
+    if (slot === "labels") layers.push(...exploreLayers(theme, "labels"));
   }
 
   return {
     version: 8,
-    // Kept on both basemaps, so swapping them never has to reload fonts.
     glyphs: EXPLORE_GLYPHS,
-    sources: explore
-      ? exploreSources()
-      : {
-          "esri-base": {
-            type: "raster",
-            tiles: [esri("Base")],
-            tileSize: 256,
-            maxzoom: ESRI_MAX_NATIVE_ZOOM,
-            attribution: ESRI_ATTRIBUTION,
-          },
-          "esri-labels": { type: "raster", tiles: [esri("Reference")], tileSize: 256, maxzoom: ESRI_MAX_NATIVE_ZOOM },
-        },
+    sources: exploreSources(),
     layers,
-    ...(explore && terrain
-      ? { terrain: { source: EXPLORE_TERRAIN_SOURCE, exaggeration: 1.3 }, sky: SKY[theme] }
-      : {}),
+    ...(terrain ? { terrain: { source: EXPLORE_TERRAIN_SOURCE, exaggeration: 1.3 }, sky: SKY[theme] } : {}),
   };
 }
 
 /**
- * A new basemap style with the current overlays carried over: their sources,
+ * A new style (theme, fading, terrain) with the current overlays carried over: their sources,
  * and their layers in the same slots. For `map.setStyle`'s `transformStyle`.
  */
 export function keepOverlays(previous: StyleSpecification | undefined, next: StyleSpecification): StyleSpecification {

@@ -109,8 +109,9 @@ Known facts about the upstreams, all already handled in the code:
   frame, every ten minutes) and writes tiles through zoom 9 to `.outside/mrms/`
   (tens of MB, pruned as frames age out). Nothing runs while nobody is looking,
   and there is no extra process or job to start. It covers the continental US only.
-- **Basemap:** the map uses Esri Dark Gray Canvas, because CARTO's dark tiles now
-  demand an API key.
+- **Basemap:** the map draws OpenFreeMap's vector tiles (OpenStreetMap data) and
+  the Terrain Tiles on AWS with MapLibre GL, all keyless. MapLibre's tile worker is
+  served by this app at `/map-worker`.
 - **Per-request rendering:** pages are rendered per request (`RenderPerRequest` in
   `src/app/layout.tsx`). That's required so the nonce-based CSP can stamp Next's
   inline scripts. Don't "optimize" it back to static.

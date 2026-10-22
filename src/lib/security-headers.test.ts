@@ -27,7 +27,7 @@ describe("contentSecurityPolicy", () => {
 
   it("lets the map fetch from its tile hosts, and nothing else remote", () => {
     expect(directive(policy(), "connect-src")).toBe(
-      "connect-src 'self' https://server.arcgisonline.com https://mesonet.agron.iastate.edu https://tiles.openfreemap.org https://s3.amazonaws.com",
+      "connect-src 'self' https://mesonet.agron.iastate.edu https://tiles.openfreemap.org https://s3.amazonaws.com",
     );
     expect(directive(policy(), "img-src")).toBe("img-src 'self' blob: data: https://digital.weather.gov");
   });

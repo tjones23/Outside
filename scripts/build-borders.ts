@@ -2,8 +2,7 @@
  * Build `public/borders.json`: the state and country lines the map draws over
  * radar and warnings.
  *
- * Esri's gray canvases bake these into the base tiles, faint and underneath
- * everything else. The map draws its own on top, all from Natural Earth's
+ * The basemap draws these faint and underneath everything else. The map draws its own on top, all from Natural Earth's
  * 1:10m data: country land borders (via world-atlas's TopoJSON, shared edges
  * only — coastlines already show as land against water) and the state and
  * province lines of the US, Canada and Mexico.
