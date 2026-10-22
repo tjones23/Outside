@@ -38,6 +38,19 @@ export function FiltersPanel({ onClose }: { onClose: () => void }) {
         </Button>
       }
     >
+      <SectionTitle>Map</SectionTitle>
+      <div className="flex flex-wrap gap-2">
+        <Chip on={f.basemap === "gray"} onClick={() => update({ basemap: "gray" })}>
+          Gray
+        </Chip>
+        <Chip on={f.basemap === "explore"} onClick={() => update({ basemap: "explore" })}>
+          Explore
+        </Chip>
+      </div>
+      <p className="mt-1.5 text-xs text-muted-dim">
+        Explore is a terrain-shaded street map from OpenStreetMap. Its colors fade while radar or a forecast is on.
+      </p>
+
       <SectionTitle>Storm types</SectionTitle>
       <CategoryChips />
 

@@ -1,7 +1,7 @@
 import { ALERT_GROUPS } from "./alert-catalog";
 import { isForecastProduct } from "./forecast";
 import { clampDay, isOutlookKind, outlookProduct } from "./outlook";
-import type { AlertGroup, FilterSettings, OutlookProduct, StormAlert, StormCategory, StormReport } from "./types";
+import type { AlertGroup, Basemap, FilterSettings, OutlookProduct, StormAlert, StormCategory, StormReport } from "./types";
 
 /**
  * What the map and lists show. Ported from `FilterSettings.cs`.
@@ -36,7 +36,10 @@ export const DEFAULT_FILTERS: FilterSettings = {
   showHotspots: false,
   showSmoke: false,
   showAirQuality: false,
+  basemap: "gray",
 };
+
+export const BASEMAPS: Basemap[] = ["gray", "explore"];
 
 /** Same options as the mobile filter screen. */
 export const REPORT_DAY_OPTIONS = [1, 2, 3, 5] as const;
@@ -95,6 +98,7 @@ export function normalizeFilters(input: unknown): FilterSettings {
     showHotspots: bool("showHotspots"),
     showSmoke: bool("showSmoke"),
     showAirQuality: bool("showAirQuality"),
+    basemap: BASEMAPS.includes(src.basemap as Basemap) ? (src.basemap as Basemap) : DEFAULT_FILTERS.basemap,
   };
 }
 

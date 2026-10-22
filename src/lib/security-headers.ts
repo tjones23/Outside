@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { EXPLORE_HOSTS } from "./explore-style";
 import { THEME_SCRIPT } from "./theme";
 
 /**
@@ -77,8 +78,9 @@ export function contentSecurityPolicy({ nonce, isDev }: HeaderOptions): string {
     "style-src-attr 'unsafe-inline'",
     `img-src 'self' blob: data: ${TILE_HOSTS.join(" ")}`,
     "font-src 'self'",
-    "connect-src 'self'",
-    // The notification service worker.
+    // The Explore basemap's vector tiles, fonts and terrain, which MapLibre fetches.
+    `connect-src 'self' ${EXPLORE_HOSTS.join(" ")}`,
+    // The notification service worker, and MapLibre's tile worker (served by `/map-worker`).
     "worker-src 'self'",
     "manifest-src 'self'",
     "object-src 'none'",

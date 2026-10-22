@@ -28,7 +28,9 @@ describe("contentSecurityPolicy", () => {
   it("permits the map tile hosts and nothing else remote", () => {
     const img = directive(policy(), "img-src")!;
     expect(img).toContain("https://server.arcgisonline.com");
-    expect(directive(policy(), "connect-src")).toBe("connect-src 'self'");
+    expect(directive(policy(), "connect-src")).toBe(
+      "connect-src 'self' https://tiles.openfreemap.org https://s3.amazonaws.com",
+    );
   });
 
   it("allows server-rendered style attributes but still nonces style elements", () => {
