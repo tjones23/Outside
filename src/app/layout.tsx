@@ -2,7 +2,6 @@ import type { Metadata, Viewport } from "next";
 import { connection } from "next/server";
 import { Suspense } from "react";
 import { Geist, Geist_Mono } from "next/font/google";
-import "leaflet/dist/leaflet.css";
 import "./globals.css";
 import { AlertNotifier } from "@/components/AlertNotifier";
 import { MapHost } from "@/components/map/MapHost";

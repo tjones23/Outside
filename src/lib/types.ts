@@ -8,8 +8,9 @@ import type { SnotelDepth, SnotelReport } from "./snotel";
  * `src/app` or `src/components` ever sees a raw one. They are also the wire
  * format of the `/api/*` routes, so everything here must stay plain JSON.
  *
- * Coordinates are `[lat, lon]` tuples throughout — the order Leaflet takes —
- * and GeoJSON's `[lon, lat]` is swapped exactly once, in `geojson.ts`.
+ * Coordinates are `[lat, lon]` tuples throughout. GeoJSON's `[lon, lat]` is
+ * swapped on the way in, in `geojson.ts`, and back for the map, in
+ * `map-features.ts`.
  */
 
 export type LatLng = [lat: number, lon: number];
@@ -146,10 +147,8 @@ export interface OutlookData {
 export interface RadarFrame {
   /** Unix seconds. */
   time: number;
-  /** Leaflet tile template with `{z}/{x}/{y}` placeholders, or a WMS endpoint when `wms` is set. */
+  /** Tile template with `{z}/{x}/{y}` placeholders. */
   url: string;
-  /** Present for frames served by a WMS: the layer and any extra GetMap parameters (time). */
-  wms?: { layers: string; params: Record<string, string> };
 }
 
 /** Radar frames, colored rain vs. snow, drawn by this server from NOAA MRMS. */

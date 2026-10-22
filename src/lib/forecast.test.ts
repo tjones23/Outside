@@ -5,9 +5,13 @@ import {
   forecastProduct,
   hrrrTileUrl,
   isForecastProduct,
+  NDFD_LAYERS,
+  ndfdGetMapUrl,
+  ndfdValidTime,
   parseHrrrMeta,
   parseNdfdTimes,
   pickNdfdTimes,
+  tileBounds,
 } from "./forecast";
 
 describe("HRRR", () => {
@@ -77,13 +81,26 @@ describe("NDFD", () => {
     expect(pickNdfdTimes(times, Date.UTC(2026, 9, 7, 0), 10)).toHaveLength(10);
   });
 
-  it("builds WMS frames with the time as a parameter", () => {
+  it("builds NDFD frames as this server's tiles, with the valid time in the path", () => {
     const frames = buildNdfdFrames(forecastProduct("ndfd-temp"), ["2026-10-07T18:00"]);
     expect(frames.frames[0]).toEqual({
       time: Date.parse("2026-10-07T18:00:00Z") / 1000,
-      url: "https://digital.weather.gov/ndfd/wms",
-      wms: { layers: "ndfd.conus.t", params: { vtit: "2026-10-07T18:00" } },
+      url: "/api/ndfd/ndfd.conus.t/2026-10-07T1800/{z}/{x}/{y}.png",
     });
+    expect(ndfdValidTime("2026-10-07T1800")).toBe("2026-10-07T18:00");
+    expect(ndfdValidTime("2026-10-07T18:00")).toBeNull();
+    expect(NDFD_LAYERS.has("ndfd.conus.t")).toBe(true);
+  });
+
+  it("asks NWS for a tile as a Web Mercator GetMap", () => {
+    expect(tileBounds(0, 0, 0).map(Math.round)).toEqual([-20037508, -20037508, 20037508, 20037508]);
+    expect(tileBounds(1, 1, 0).map(Math.round)).toEqual([0, 0, 20037508, 20037508]);
+    const url = new URL(ndfdGetMapUrl("ndfd.conus.t", "2026-10-07T18:00", 1, 1, 0));
+    expect(url.origin + url.pathname).toBe("https://digital.weather.gov/ndfd/wms");
+    expect(url.searchParams.get("LAYERS")).toBe("ndfd.conus.t");
+    expect(url.searchParams.get("VTIT")).toBe("2026-10-07T18:00");
+    expect(url.searchParams.get("SRS")).toBe("EPSG:3857");
+    expect(url.searchParams.get("TRANSPARENT")).toBe("true");
   });
 
   it("knows its product ids", () => {

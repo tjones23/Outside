@@ -1,19 +1,26 @@
-import type { ExpressionSpecification, FilterSpecification, LayerSpecification, StyleSpecification } from "maplibre-gl";
+import type {
+  ExpressionSpecification,
+  FilterSpecification,
+  LayerSpecification,
+  RasterDEMSourceSpecification,
+  StyleSpecification,
+} from "maplibre-gl";
+import { adjusted, rgbComponents, toHex } from "./color";
 import type { Theme } from "./theme";
 
 /**
  * The "Explore" basemap: a vector map in the spirit of Apple Maps' Explore
  * mode — soft land cover, blue water, white roads and terrain shading —
- * drawn by MapLibre GL under the Leaflet map (see `components/map/explore.tsx`).
+ * drawn by MapLibre GL.
  *
  * Everything here is free and keyless, like the rest of Outside:
  * - streets, land cover and labels: OpenFreeMap's OpenMapTiles-schema tiles
  *   (OpenStreetMap data);
  * - terrain: the Terrain Tiles on AWS Open Data (Mapzen's terrarium DEM).
  *
- * The style comes in two parts, each drawn by its own MapLibre map in its own
- * Leaflet pane: the base under radar and warnings, and the labels above them
- * — the same split as Esri's base and reference tiles.
+ * The layers come in two parts: the base under radar and warnings, and the
+ * labels above them — the same split as Esri's base and reference tiles.
+ * `map-style.ts` puts them in place around the overlays.
  */
 
 export type ExplorePart = "base" | "labels";
@@ -338,26 +345,41 @@ function labelLayers(c: Palette): LayerSpecification[] {
   ];
 }
 
-export function exploreStyle(theme: Theme, part: ExplorePart): StyleSpecification {
-  const c = PALETTE[theme];
-  const omt = { type: "vector", url: `${OPENFREEMAP}/planet` } as const;
-  return {
-    version: 8,
-    glyphs: `${OPENFREEMAP}/fonts/{fontstack}/{range}.pbf`,
-    sources:
-      part === "base"
-        ? {
-            omt: { ...omt, attribution: OPENFREEMAP_ATTRIBUTION },
-            terrain: {
-              type: "raster-dem",
-              tiles: [TERRAIN],
-              encoding: "terrarium",
-              tileSize: 256,
-              maxzoom: 15,
-              attribution: TERRAIN_ATTRIBUTION,
-            },
-          }
-        : { omt },
-    layers: part === "base" ? baseLayers(c) : labelLayers(c),
+/** While radar or a forecast plays, the base's colors fade so forest and water don't read as precipitation. */
+const MUTED_SATURATION = 0.35;
+
+function mutedPalette(c: Palette): Palette {
+  const mute = (color: string) => {
+    const rgb = rgbComponents(color);
+    return rgb ? toHex(adjusted(rgb, MUTED_SATURATION)) : color;
   };
+  return Object.fromEntries(Object.entries(c).map(([k, v]) => [k, mute(v)])) as unknown as Palette;
+}
+
+export const EXPLORE_GLYPHS = `${OPENFREEMAP}/fonts/{fontstack}/{range}.pbf`;
+
+/**
+ * The Explore map's sources. `terrain3d` is a second copy of the terrain for
+ * MapLibre's 3D mode: it asks for its own source, apart from the hillshade's.
+ */
+export function exploreSources(): StyleSpecification["sources"] {
+  const terrain: RasterDEMSourceSpecification = {
+    type: "raster-dem",
+    tiles: [TERRAIN],
+    encoding: "terrarium",
+    tileSize: 256,
+    maxzoom: 15,
+  };
+  return {
+    omt: { type: "vector", url: `${OPENFREEMAP}/planet`, attribution: OPENFREEMAP_ATTRIBUTION },
+    terrain: { ...terrain, attribution: TERRAIN_ATTRIBUTION },
+    terrain3d: terrain,
+  };
+}
+
+export const EXPLORE_TERRAIN_SOURCE = "terrain3d";
+
+export function exploreLayers(theme: Theme, part: ExplorePart, muted = false): LayerSpecification[] {
+  const c = muted ? mutedPalette(PALETTE[theme]) : PALETTE[theme];
+  return part === "base" ? baseLayers(c) : labelLayers(c);
 }

@@ -23,17 +23,22 @@ export interface HeaderOptions {
 }
 
 /**
- * Hosts the browser loads map imagery from. Everything else — including all
- * storm data, which the server fetches and caches — is same-origin.
+ * Hosts the map fetches tiles from. MapLibre loads every tile with `fetch`,
+ * so these are `connect-src`, and each must answer with CORS headers.
+ * Everything else — including all storm data, which the server fetches and
+ * caches, and NWS forecast tiles (`/api/ndfd`) — is same-origin.
  */
-export const TILE_HOSTS = [
-  // Basemaps and their labels (Esri Dark Gray and Light Gray Canvas).
+export const MAP_HOSTS = [
+  // The gray basemaps and their labels (Esri Dark Gray and Light Gray Canvas).
   "https://server.arcgisonline.com",
   // HRRR future-radar frames (Iowa Environmental Mesonet).
   "https://mesonet.agron.iastate.edu",
-  // NWS forecast (NDFD) frames and their color-scale legends.
-  "https://digital.weather.gov",
+  // The Explore basemap: vector tiles and fonts, and terrain.
+  ...EXPLORE_HOSTS,
 ] as const;
+
+/** Images the page shows itself: NWS's forecast color scales, under the legend. */
+export const IMAGE_HOSTS = ["https://digital.weather.gov"] as const;
 
 /**
  * React's streaming renderer puts one fixed inline script in the prerendered
@@ -76,10 +81,9 @@ export function contentSecurityPolicy({ nonce, isDev }: HeaderOptions): string {
      * can't run script; `<style>` elements still need the nonce.
      */
     "style-src-attr 'unsafe-inline'",
-    `img-src 'self' blob: data: ${TILE_HOSTS.join(" ")}`,
+    `img-src 'self' blob: data: ${IMAGE_HOSTS.join(" ")}`,
     "font-src 'self'",
-    // The Explore basemap's vector tiles, fonts and terrain, which MapLibre fetches.
-    `connect-src 'self' ${EXPLORE_HOSTS.join(" ")}`,
+    `connect-src 'self' ${MAP_HOSTS.join(" ")}`,
     // The notification service worker, and MapLibre's tile worker (served by `/map-worker`).
     "worker-src 'self'",
     "manifest-src 'self'",

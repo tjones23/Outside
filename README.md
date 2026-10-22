@@ -40,16 +40,16 @@ Service and Nominatim, both of which ask for one. It defaults to this repo.
 | [WPC excessive rainfall](https://www.wpc.ncep.noaa.gov/qpf/excessive_rainfall_outlook_ero.php) | Flash-flood risk, days 1–5 | 15 min |
 | [NOAA MRMS](https://www.nssl.noaa.gov/projects/mrms/) (`mrms.ncep.noaa.gov`) | Radar, last hour, colored rain or snow; drawn into tiles by this server | 10 min, while radar is on |
 | [Iowa Environmental Mesonet](https://mesonet.agron.iastate.edu/) | HRRR simulated radar, hourly to 18 h, as tiles | 10 min |
-| [NDFD WMS](https://digital.weather.gov/) | NWS 7-day gridded forecast: temperature, feels-like, gusts, rain, rain chance, cloud, snow | 10 min |
+| [NDFD WMS](https://digital.weather.gov/) | NWS 7-day gridded forecast: temperature, feels-like, gusts, rain, rain chance, cloud, snow; tiles come through this server (`/api/ndfd`), since the WMS sends no CORS headers | 10 min |
 | [NWS API](https://www.weather.gov/documentation/services-web-api) `points` + `gridpoints` | A saved place's 7-day forecast: day/night periods, new snow and precipitation per day | 15 min (grid cell lookup: 7 days), on opening a place |
 | [Open-Meteo](https://open-meteo.com/) forecast + ensemble APIs | A saved place's 15-day snow blend: HRRR, HRDPS, NBM, ECMWF IFS, GFS, ICON, GDPS, ECMWF AIFS, AIGFS; GEFS and AIFS ensembles. Free for non-commercial use, CC BY 4.0 | 1 h (HRRR, HRDPS, NBM), 3 h (global), 6 h (ensembles), on opening a place |
 | [NIFC WFIGS](https://data-nifc.opendata.arcgis.com/) | Wildfires not yet out (size, containment, cause) and their mapped perimeters | 5 min (fires), 15 min (perimeters) |
 | [NASA FIRMS](https://firms.modaps.eosdis.nasa.gov/) VIIRS via [Esri Living Atlas](https://livingatlas.arcgis.com/) | Satellite fire hotspots, last 24 h, US and Canada | 15 min, while on |
 | [NOAA HMS](https://www.ospo.noaa.gov/products/land/hms.html) | Smoke plumes by density, today's (UTC) analysis or yesterday's until today's is drawn | 30 min, while on |
 | [EPA AirNow](https://www.airnow.gov/) hourly files (`files.airnowtech.org`) | Each monitor's AQI (worst of PM2.5, ozone, PM10, NO₂), newest published hour, US and Canada | 15 min, while on |
-| [Esri Dark Gray Canvas](https://www.esri.com/) | Basemap and labels | — |
+| [Esri Dark Gray Canvas](https://www.esri.com/) | The gray basemap and its labels | — |
 | [OpenFreeMap](https://openfreemap.org/) (OpenStreetMap, OpenMapTiles schema) | The Explore basemap's streets, land cover and labels, as vector tiles drawn by MapLibre GL | — |
-| [Terrain Tiles on AWS](https://registry.opendata.aws/terrain-tiles/) (Mapzen terrarium) | The Explore basemap's terrain shading | — |
+| [Terrain Tiles on AWS](https://registry.opendata.aws/terrain-tiles/) (Mapzen terrarium) | The Explore basemap's terrain shading, and its 3D terrain when tilted | — |
 | [Open-Meteo](https://open-meteo.com/) forecast API, `past_days` | A place's last 15 days of snow: HRRR, NBM, ECMWF IFS, GFS, through the blend's snow ratio | 1 h, on opening a place |
 | [USDA NRCS AWDB](https://wcc.sc.egov.usda.gov/awdbRestApi/swagger-ui/index.html) (SNOTEL) | Measured snow depth and water: every station's latest depth for the lists, and the nearest station's last 15 days for a place | 30 min (station list: 1 day) |
 | [Nominatim](https://nominatim.org/) | Place search when saving a location | on submit only |
@@ -63,6 +63,9 @@ Service and Nominatim, both of which ask for one. It defaults to this repo.
   smoke and air-quality monitors. Tap anywhere to list every alert there — zone-based
   alerts stack. A banner tells you when you're inside a warning (or a watch
   or advisory), or near recent reports; storm pills fly to each active storm.
+  Two basemaps, under Filters → Map: Esri's gray canvas, or Explore, a
+  terrain-shaded street map. The map is MapLibre GL: drag with two fingers
+  (or right-drag) to rotate and tilt; tilted, the Explore map rises in 3D.
 - **Reports** — every report, newest first, or within 50 / 100 / 250 miles of you.
 - **Alerts** — every alert, filtered by hazard family (severe, tropical,
   flood, coastal, heat, winter, wind, fire, marine, other) and tier (warning,

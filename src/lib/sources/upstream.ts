@@ -16,6 +16,7 @@ import {
   HRRR_MINUTES,
   hrrrMetaUrl,
   NDFD_CAPABILITIES_URL,
+  ndfdGetMapUrl,
   parseHrrrMeta,
   parseNdfdTimes,
   pickNdfdTimes,
@@ -393,6 +394,17 @@ export async function fetchNdfdTimes(layer: string): Promise<string[]> {
   const times = parseNdfdTimes(await response.text(), layer);
   if (times.length === 0) throw new Error(`NDFD lists no times for ${layer}`);
   return times;
+}
+
+/** One NDFD forecast tile, as a PNG. */
+export async function fetchNdfdTile(layer: string, validTime: string, z: number, x: number, y: number): Promise<Uint8Array> {
+  const url = ndfdGetMapUrl(layer, validTime, z, x, y);
+  const response = await get(url, "image/png");
+  // A WMS reports a bad request as a 200 with an XML error document.
+  if (!response.headers.get("content-type")?.startsWith("image/")) {
+    throw new UpstreamError(url, response.status, "NDFD answered without an image");
+  }
+  return new Uint8Array(await response.arrayBuffer());
 }
 
 /** HRRR frames: one small JSON per forecast hour. A few missing is fine; all missing isn't. */

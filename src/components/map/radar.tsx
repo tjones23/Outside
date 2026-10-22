@@ -1,17 +1,18 @@
 "use client";
 
-import type { TileLayer as LeafletTileLayer, WMSParams } from "leaflet";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { TileLayer, useMapEvents, WMSTileLayer } from "react-leaflet";
+import { useCallback, useEffect, useState } from "react";
 import { formatClock, formatDayClock } from "@/lib/format";
+import { OVERLAY_PREFIX, slotEnd } from "@/lib/map-style";
 import type { RadarFrame } from "@/lib/types";
 import { useNow } from "../providers/useNow";
+import { useGL } from "./gl";
 
 /**
  * Animated map imagery: composite radar, and forecast animations.
  *
- * Each frame is its own tile layer and only the current one is opaque, so
- * stepping through the loop toggles opacity — no re-fetch, no flicker.
+ * Each frame is its own raster source and layer, and only the current one is
+ * opaque, so stepping through the loop toggles opacity — no re-fetch, no
+ * flicker.
  *
  * RainViewer's free tier allows 500 tile requests a minute per IP (300 in a
  * burst), and one continental view is ~25 tiles per frame. Mounting every
@@ -137,17 +138,58 @@ export function useFramePlayback(frames: RadarFrame[], order: LoadOrder): FrameP
   };
 }
 
-/** WMS GetMap parameters per frame, kept stable so Leaflet doesn't redraw on every render. */
-function useWmsParams(frames: RadarFrame[]): Map<number, WMSParams> {
-  return useMemo(() => {
-    const out = new Map<number, WMSParams>();
-    for (const f of frames) {
-      if (f.wms) {
-        out.set(f.time, { layers: f.wms.layers, format: "image/png", transparent: true, ...f.wms.params } as WMSParams);
+const frameSource = (frame: RadarFrame) => `${OVERLAY_PREFIX}frame:${frame.time}`;
+
+/** One frame: a raster source and layer, shown at `opacity` (0 while it waits its turn). */
+function Frame({
+  frame,
+  opacity,
+  maxNativeZoom,
+  attribution,
+}: {
+  frame: RadarFrame;
+  opacity: number;
+  maxNativeZoom: number;
+  attribution?: string;
+}) {
+  const { map } = useGL();
+  const id = frameSource(frame);
+
+  useEffect(() => {
+    map.addSource(id, {
+      type: "raster",
+      // MapLibre wants absolute tile URLs; ours may be this server's paths.
+      tiles: [frame.url.startsWith("/") ? window.location.origin + frame.url : frame.url],
+      tileSize: 256,
+      // Past the source's native zoom MapLibre stretches its tiles instead
+      // of requesting ones that don't exist (or are placeholders).
+      maxzoom: maxNativeZoom,
+      attribution,
+    });
+    map.addLayer(
+      {
+        id,
+        type: "raster",
+        source: id,
+        paint: { "raster-opacity": 0, "raster-fade-duration": 0, "raster-opacity-transition": { duration: 0 } },
+      },
+      slotEnd("imagery"),
+    );
+    return () => {
+      try {
+        if (map.getLayer(id)) map.removeLayer(id);
+        if (map.getSource(id)) map.removeSource(id);
+      } catch {
+        // The map is already gone.
       }
-    }
-    return out;
-  }, [frames]);
+    };
+  }, [map, id, frame.url, maxNativeZoom, attribution]);
+
+  useEffect(() => {
+    if (map.getLayer(id)) map.setPaintProperty(id, "raster-opacity", opacity);
+  }, [map, id, opacity]);
+
+  return null;
 }
 
 export function FrameLayer({
@@ -161,70 +203,60 @@ export function FrameLayer({
   opacity: number;
   order: LoadOrder;
   maxNativeZoom: number;
-  /** Leaflet attribution HTML, put on one frame only. */
+  /** Attribution HTML, put on one frame only. */
   attribution: string;
 }) {
+  const { map } = useGL();
   const { frames, lo, hi, index, view, loadNext, viewChanged } = playback;
-  useMapEvents(useMemo(() => ({ moveend: viewChanged }), [viewChanged]));
-  const wmsParams = useWmsParams(frames);
 
-  const layers = useRef(new Map<number, LeafletTileLayer>());
+  useEffect(() => {
+    map.on("moveend", viewChanged);
+    return () => {
+      map.off("moveend", viewChanged);
+    };
+  }, [map, viewChanged]);
+
   const edge = frames[order === "newest-first" ? lo : hi];
   const ready = hi - lo + 1;
 
   // Once the most recently mounted frame has its tiles, queue the next one.
-  // Its `load` event alone isn't enough: Leaflet fires it only after fetching
-  // tiles, so a move that needed none (or whose tiles landed before this ran)
-  // would leave the loop stuck on one frame.
+  // MapLibre reports a source's progress as `sourcedata` events; a view that
+  // needed no tiles, or whose tiles landed before this ran, is loaded already.
   useEffect(() => {
-    const layer = edge && layers.current.get(edge.time);
-    if (!layer || ready >= frames.length) return;
+    if (!edge || ready >= frames.length) return;
+    const id = frameSource(edge);
     let timer: number | undefined;
-    const next = () => {
-      window.clearTimeout(timer);
+    let queued = false;
+    const check = () => {
+      if (queued || !map.getSource(id) || !map.isSourceLoaded(id)) return;
+      queued = true;
       timer = window.setTimeout(() => loadNext(ready), PRELOAD_GAP_MS);
     };
-    if (layer.isLoading()) layer.on("load", next);
-    else next();
+    map.on("sourcedata", check);
+    map.on("idle", check);
+    check();
     return () => {
-      layer.off("load", next);
+      map.off("sourcedata", check);
+      map.off("idle", check);
       window.clearTimeout(timer);
     };
-  }, [edge, ready, frames.length, view, loadNext]);
+  }, [map, edge, ready, frames.length, view, loadNext]);
 
   const attributionAt = order === "newest-first" ? frames.length - 1 : 0;
 
   return (
     <>
-      {frames.map((frame, i) => {
-        if (i < lo || i > hi) return null;
-        const ref = (layer: LeafletTileLayer | null) => {
-          if (!layer) return;
-          layers.current.set(frame.time, layer);
-          return () => {
-            layers.current.delete(frame.time);
-          };
-        };
-        const common = {
-          opacity: i === index ? opacity : 0,
-          zIndex: 5,
-          // Past the source's native zoom Leaflet stretches its tiles instead
-          // of requesting ones that don't exist (or are placeholders).
-          maxNativeZoom,
-          maxZoom: 19,
-          noWrap: true,
-          // As the base map: let tiles scale through a zoom, not reload mid-gesture.
-          updateWhenZooming: false,
-          keepBuffer: 4,
-          attribution: i === attributionAt ? attribution : undefined,
-        };
-        const params = wmsParams.get(frame.time);
-        return params ? (
-          <WMSTileLayer key={frame.time} ref={ref} url={frame.url} params={params} uppercase {...common} />
-        ) : (
-          <TileLayer key={frame.time} ref={ref} url={frame.url} {...common} />
-        );
-      })}
+      {frames.map((frame, i) =>
+        i < lo || i > hi ? null : (
+          <Frame
+            key={frame.time}
+            frame={frame}
+            opacity={i === index ? opacity : 0}
+            maxNativeZoom={maxNativeZoom}
+            attribution={i === attributionAt ? attribution : undefined}
+          />
+        ),
+      )}
     </>
   );
 }

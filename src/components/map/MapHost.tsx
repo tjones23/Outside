@@ -7,13 +7,13 @@ import { usePathname } from "next/navigation";
  * The map lives in the root layout, not in the `/` page.
  *
  * Next 16 keeps recently visited pages alive in React `<Activity>` and runs
- * their effect cleanup when you navigate away — which for react-leaflet means
- * destroying the map, its tiles and every radar frame, then rebuilding it all
+ * their effect cleanup when you navigate away — which for the map means
+ * destroying it, its tiles and every radar frame, then rebuilding it all
  * on the way back. Hosting it here keeps one map for the life of the tab: it
  * is only hidden while another page is showing, so position, zoom and cached
  * tiles survive a trip to the Reports list and back.
  *
- * Leaflet touches `window` on import, so it is loaded client-side only.
+ * MapLibre needs `window` and WebGL, so the map is loaded client-side only.
  *
  * `z-[1]` rather than `z-0`: the layout's `<main>` comes later in the tree and
  * fills the same space, so at z-index 0 it would sit on top of the map — empty

@@ -15,6 +15,8 @@ import {
   fetchFireIncidents,
   fetchFirePerimeters,
   fetchForecast,
+  fetchNdfdTile,
+  fetchNdfdTimes,
   fetchGeocode,
   fetchHotspots,
   fetchMrmsFile,
@@ -30,6 +32,7 @@ import {
   fetchWwaOutlines,
   userAgent,
 } from "../src/lib/sources/upstream";
+import { forecastProduct, pickNdfdTimes } from "../src/lib/forecast";
 import { outlookProduct } from "../src/lib/outlook";
 import { HOTSPOT_MAX_HOURS } from "../src/lib/wildfire";
 import { convectiveDate } from "../src/lib/reports";
@@ -159,14 +162,11 @@ async function main(): Promise<void> {
   });
 
   await check("NDFD temperature (WMS)", async () => {
-    const { frames } = await fetchForecast("ndfd-temp", Date.now());
-    const first = frames[0];
-    // Web Mercator only: the service doesn't offer EPSG:4326. This box is Oklahoma.
-    const bbox = "-11131949,3503549,-10018754,4163881";
-    const tile = `${first.url}?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetMap&LAYERS=${first.wms!.layers}&STYLES=&SRS=EPSG:3857&BBOX=${bbox}&WIDTH=256&HEIGHT=256&FORMAT=image/png&TRANSPARENT=true&VTIT=${first.wms!.params.vtit}`;
-    const response = await fetch(tile);
-    if (!response.ok) throw new Error(`GetMap HTTP ${response.status}`);
-    return `${frames.length} frames from ${first.wms!.params.vtit}Z, GetMap 200`;
+    const layer = forecastProduct("ndfd-temp").ndfd!.layer;
+    const times = pickNdfdTimes(await fetchNdfdTimes(layer), Date.now());
+    // The zoom-6 tile over Oklahoma, as the map's tile route asks for it.
+    const tile = await fetchNdfdTile(layer, times[0], 6, 14, 25);
+    return `${times.length} frames from ${times[0]}Z, tile ${tile.length} bytes`;
   });
 
   await check("NWS 7-day forecast (Alta, UT)", async () => {

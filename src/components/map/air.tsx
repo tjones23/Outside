@@ -1,36 +1,48 @@
 "use client";
 
-import { divIcon, type LatLngExpression } from "leaflet";
-import { memo, useCallback, useMemo, useState } from "react";
-import { Marker, Popup } from "react-leaflet";
+import { memo, useMemo, useState } from "react";
 import { aqiCategory, pollutantName, pollutantReadings } from "@/lib/air-quality";
 import { formatDateTime } from "@/lib/format";
+import { collection, point } from "@/lib/map-features";
 import type { AirQualitySite } from "@/lib/types";
+import { MapPopup, useOverlay, useOverlayClick, type OverlayLayer } from "./gl";
+import { aqiIcon } from "./icons";
 
 /**
  * AirNow monitors: a dot in the AQI's color with the number inside it.
- * There are a couple of thousand, so they share one popup: a click picks a
- * monitor and the popup opens on it.
+ * There are a couple of thousand, so they're one layer and share one popup.
  */
 
-export function AirQualityLayer({ sites }: { sites: AirQualitySite[] }) {
-  const [picked, setPicked] = useState<AirQualitySite | null>(null);
-  const close = useCallback(() => setPicked(null), []);
-  const closeHandlers = useMemo(() => ({ remove: close }), [close]);
-  // Cleanest first, so the worst air draws on top.
-  const ordered = useMemo(() => [...sites].sort((a, b) => a.aqi - b.aqi), [sites]);
+const AIR_LAYERS: OverlayLayer[] = [
+  {
+    id: "dots",
+    type: "symbol",
+    layout: {
+      "icon-image": ["get", "icon"],
+      "icon-allow-overlap": true,
+      "icon-ignore-placement": true,
+      // The worst air draws on top.
+      "symbol-sort-key": ["get", "aqi"],
+    },
+  },
+];
 
-  return (
-    <>
-      <AirDots sites={ordered} onPick={setPicked} />
-      {picked && (
-        <Popup key={picked.id} position={picked.coord as LatLngExpression} pane="popupPane" eventHandlers={closeHandlers}>
-          <AirPopup site={picked} />
-        </Popup>
-      )}
-    </>
+export const AirQualityLayer = memo(function AirQualityLayer({ sites }: { sites: AirQualitySite[] }) {
+  const features = useMemo(
+    () => collection(sites.map((site, i) => point(site.coord, { i, aqi: site.aqi, icon: aqiIcon(site.aqi) }))),
+    [sites],
   );
-}
+  useOverlay("air", "air", features, AIR_LAYERS);
+
+  const [picked, setPicked] = useState<AirQualitySite | null>(null);
+  useOverlayClick("air", ["dots"], (feature) => setPicked(sites[Number(feature.properties.i)] ?? null));
+  if (!picked) return null;
+  return (
+    <MapPopup at={picked.coord} offset={12} onClose={() => setPicked(null)}>
+      <AirPopup site={picked} />
+    </MapPopup>
+  );
+});
 
 function AirPopup({ site }: { site: AirQualitySite }) {
   const category = aqiCategory(site.aqi);
@@ -62,42 +74,3 @@ function AirPopup({ site }: { site: AirQualitySite }) {
     </>
   );
 }
-
-const dotIcons = new Map<number, ReturnType<typeof divIcon>>();
-
-function dotIcon(aqi: number) {
-  let icon = dotIcons.get(aqi);
-  if (!icon) {
-    const { color, text } = aqiCategory(aqi);
-    icon = divIcon({
-      className: "",
-      iconSize: [22, 22],
-      html: `<div class="aqi-dot" style="background:${color};color:${text}">${aqi}</div>`,
-    });
-    dotIcons.set(aqi, icon);
-  }
-  return icon;
-}
-
-const AirDots = memo(function AirDots({
-  sites,
-  onPick,
-}: {
-  sites: AirQualitySite[];
-  onPick: (site: AirQualitySite) => void;
-}) {
-  return (
-    <>
-      {sites.map((site, i) => (
-        <Marker
-          key={site.id}
-          position={site.coord}
-          icon={dotIcon(site.aqi)}
-          zIndexOffset={i}
-          title={`${site.name}: AQI ${site.aqi}`}
-          eventHandlers={{ click: () => onPick(site) }}
-        />
-      ))}
-    </>
-  );
-});

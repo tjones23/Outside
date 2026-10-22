@@ -37,7 +37,7 @@ Decisions already made with the user. Don't reopen them:
 
 - **What it shows:** live NWS tornado and severe-thunderstorm warnings and watches,
   SPC storm reports, SPC outlooks (with CIG hatching) and NOAA MRMS radar, on a
-  Leaflet map. It also has Reports, Alerts, Places and Settings pages.
+  MapLibre map. It also has Reports, Alerts, Places and Settings pages.
 - **Data flow:** every upstream is keyless. Server-side fetches sit behind `use cache`
   (`src/lib/sources/`), and the browser polls `/api/*`.
 - **State:** filters, saved places and notification settings live in each browser's

@@ -26,7 +26,7 @@ export interface ForecastProductInfo {
   units: string;
   /** Tiles past this zoom are stretched rather than fetched. */
   maxNativeZoom: number;
-  /** The NDFD element, for WMS products. */
+  /** The NDFD WMS layer and element, for NWS forecast products. */
   ndfd?: { layer: string; element: string };
 }
 
@@ -173,14 +173,58 @@ export function buildNdfdFrames(product: ForecastProductInfo, times: string[]): 
   const layer = product.ndfd!.layer;
   return {
     product: product.id,
-    frames: times.map((t) => ({
-      time: Date.parse(`${t}:00Z`) / 1000,
-      url: NDFD_WMS_URL,
-      wms: { layers: layer, params: { vtit: t } },
-    })),
+    frames: times.map((t) => ({ time: Date.parse(`${t}:00Z`) / 1000, url: ndfdTileUrl(layer, t) })),
     runTime: null,
     attribution: NDFD_ATTRIBUTION,
   };
+}
+
+/**
+ * NDFD frames come through this server as ordinary `{z}/{x}/{y}` tiles. NWS's
+ * WMS answers without CORS headers, and the map (MapLibre) fetches its tiles,
+ * so it can't ask NWS directly; the server turns each tile into a GetMap.
+ */
+export function ndfdTileUrl(layer: string, validTime: string): string {
+  return `/api/ndfd/${layer}/${validTime.replace(":", "")}/{z}/{x}/{y}.png`;
+}
+
+/** The WMS layers the tile route will ask NWS for. */
+export const NDFD_LAYERS: ReadonlySet<string> = new Set(FORECAST_PRODUCTS.flatMap((p) => (p.ndfd ? [p.ndfd.layer] : [])));
+
+/** `2026-10-07T1800` (a tile URL's valid time) → `2026-10-07T18:00`, or null. */
+export function ndfdValidTime(compact: string): string | null {
+  const m = /^(\d{4}-\d{2}-\d{2}T\d{2})(\d{2})$/.exec(compact);
+  return m ? `${m[1]}:${m[2]}` : null;
+}
+
+/** Half the Web Mercator world's width, in meters. */
+const MERCATOR_HALF = 20037508.342789244;
+
+/** A tile's extent in Web Mercator meters: `[minX, minY, maxX, maxY]`. */
+export function tileBounds(z: number, x: number, y: number): [number, number, number, number] {
+  const size = (2 * MERCATOR_HALF) / 2 ** z;
+  const minX = -MERCATOR_HALF + x * size;
+  const maxY = MERCATOR_HALF - y * size;
+  return [minX, maxY - size, minX + size, maxY];
+}
+
+/** The GetMap request for one 256-pixel tile. */
+export function ndfdGetMapUrl(layer: string, validTime: string, z: number, x: number, y: number): string {
+  const params = new URLSearchParams({
+    SERVICE: "WMS",
+    REQUEST: "GetMap",
+    VERSION: "1.1.1",
+    LAYERS: layer,
+    STYLES: "",
+    FORMAT: "image/png",
+    TRANSPARENT: "true",
+    SRS: "EPSG:3857",
+    WIDTH: "256",
+    HEIGHT: "256",
+    BBOX: tileBounds(z, x, y).join(","),
+    VTIT: validTime,
+  });
+  return `${NDFD_WMS_URL}?${params}`;
 }
 
 /** NWS-style reflectivity colors, for the HRRR legend. */
