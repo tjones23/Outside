@@ -25,12 +25,11 @@ describe("contentSecurityPolicy", () => {
     expect(policy(false)).not.toContain("'unsafe-eval'");
   });
 
-  it("permits the map tile hosts and nothing else remote", () => {
-    const img = directive(policy(), "img-src")!;
-    expect(img).toContain("https://server.arcgisonline.com");
+  it("lets the map fetch from its tile hosts, and nothing else remote", () => {
     expect(directive(policy(), "connect-src")).toBe(
-      "connect-src 'self' https://tiles.openfreemap.org https://s3.amazonaws.com",
+      "connect-src 'self' https://server.arcgisonline.com https://mesonet.agron.iastate.edu https://tiles.openfreemap.org https://s3.amazonaws.com",
     );
+    expect(directive(policy(), "img-src")).toBe("img-src 'self' blob: data: https://digital.weather.gov");
   });
 
   it("allows server-rendered style attributes but still nonces style elements", () => {

@@ -1,11 +1,12 @@
 "use client";
 
-import { SVG } from "leaflet";
+import { AttributionControl, getVersion, Map as GLMap, NavigationControl, setWorkerUrl } from "maplibre-gl";
+import "maplibre-gl/dist/maplibre-gl.css";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { MapContainer, Pane, TileLayer, ZoomControl, useMap } from "react-leaflet";
 import { alertContains, byPriority } from "@/lib/alerts";
 import { forecastProduct } from "@/lib/forecast";
 import { US_BOUNDS } from "@/lib/geo";
+import { buildStyle, keepOverlays, type StyleOptions } from "@/lib/map-style";
 import {
   PRECIP_TYPE_ATTRIBUTION,
   PRECIP_TYPE_ATTRIBUTION_HTML,
@@ -21,78 +22,39 @@ import { useStormData } from "../providers/StormDataProvider";
 import { useFilteredData } from "../providers/useFilteredData";
 import { useTheme } from "../providers/useTheme";
 import { BorderLayer } from "./borders";
-import { ExploreLayer } from "./explore";
 import { FireLayer, HotspotLayer, PerimeterLayer, SmokeLayer } from "./fires";
 import { ForecastLegend } from "./ForecastLegend";
 import { AirQualityLayer } from "./air";
 import { AirQualityLegend } from "./AirQualityLegend";
+import { GLProvider, useGL } from "./gl";
+import { provideIcons } from "./icons";
 import { AlertLayer, AlertPickPopup, DamageLayer, OutlookLayer, ReportLayer, UserLocationMarker } from "./layers";
 import { OutlookLegend } from "./OutlookLegend";
 import { PrecipTypeLegend } from "./PrecipTypeLegend";
 import { FrameLayer, FrameTimeline, useFramePlayback } from "./radar";
-import { SmoothWheelZoom } from "./SmoothWheelZoom";
 import { TropicalAreas, TropicalTracks } from "./tropical";
 import { WildfireLegend } from "./WildfireLegend";
 
 /**
- * Layer order, bottom to top. Each group gets its own pane so a feed that
- * reloads can't jump above one that didn't — with one shared canvas, Leaflet
- * would redraw whatever was added last on top.
+ * The map: one MapLibre GL map, its basemap and every storm layer.
  *
- * Vectors are drawn as SVG, not canvas. A canvas renderer puts one full-map
- * canvas in each pane, and the topmost one takes every click — nothing in a
- * lower pane (warnings, outlooks) could be clicked. SVG is hit-tested per
- * shape, so each pane passes clicks through wherever it has nothing drawn.
+ * Layer order lives in `map-style.ts` (its slots); each layer component adds
+ * itself to its slot. Zoom levels count 512-pixel tiles, so they run one
+ * less than most web maps' for the same scale.
  */
-const PANES = {
-  outlook: 405,
-  smoke: 407,
-  damage: 410,
-  tropicalAreas: 412,
-  alerts: 415,
-  perimeters: 416,
-  borders: 418,
-  labels: 420,
-  tropical: 423,
-  air: 424,
-  hotspots: 426,
-  fires: 428,
-  reports: 430,
-  you: 435,
-} as const;
+
+// MapLibre's tile worker isn't in the bundle; this server hands it out (see `/map-worker`).
+setWorkerUrl(`/map-worker?v=${getVersion()}`);
 
 const NO_FRAMES: RadarFrame[] = [];
 
-/**
- * Esri's Dark Gray and Light Gray Canvas, one per theme: free and keyless
- * with attribution. (CARTO's tiles, the usual choice, now answer every
- * request with an "API key required" placeholder.) Base and labels are
- * separate services, so the labels can sit above radar and warning polygons.
- */
-const ESRI = "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas";
-const ESRI_CANVAS = { dark: "World_Dark_Gray", light: "World_Light_Gray" } as const;
-const ESRI_ATTRIBUTION =
-  'Tiles &copy; <a href="https://www.esri.com/">Esri</a> &mdash; Esri, HERE, Garmin, &copy; OpenStreetMap contributors';
-const ESRI_MAX_NATIVE_ZOOM = 16;
+const US: [[number, number], [number, number]] = [
+  [US_BOUNDS[0][1], US_BOUNDS[0][0]],
+  [US_BOUNDS[1][1], US_BOUNDS[1][0]],
+];
 
-/**
- * The zoom buttons and keyboard move half a level rather than Leaflet's
- * default of doubling or halving the scale. Wheel and trackpad zoom is
- * continuous (see `SmoothWheelZoom`), so it replaces Leaflet's own.
- */
-const ZOOM = { zoomSnap: 0.25, zoomDelta: 0.5, scrollWheelZoom: false } as const;
-
-/**
- * Tiles stay put mid-zoom (the old ones scale until the gesture ends) and
- * a wider ring of them is kept after a pan, so less of the map goes blank
- * and reloads. (The imagery frames in `radar.tsx` do the same.)
- */
-const STEADY_TILES = { updateWhenZooming: false, keepBuffer: 4 } as const;
-
-// Each pane gets its own SVG renderer, built with Leaflet's defaults. Leaflet
-// draws vectors only 10% past the viewport, so on a zoom out the edges stay
-// empty until the animation ends, then pop in. Draw half a screen past.
-SVG.mergeOptions({ padding: 0.5 });
+/** Tilted past this, the Explore map raises its terrain. */
+const TERRAIN_PITCH = 5;
 
 export default function StormMap({ active }: { active: boolean }) {
   const { alerts, reports, damageAreas, filters } = useFilteredData();
@@ -110,7 +72,6 @@ export default function StormMap({ active }: { active: boolean }) {
   } = useStormData();
   const location = useLocation();
   const theme = useTheme();
-  const canvas = ESRI_CANVAS[theme];
 
   const [showFilters, setShowFilters] = useState(false);
   const [selectedAlert, setSelectedAlert] = useState<StormAlert | null>(null);
@@ -130,7 +91,6 @@ export default function StormMap({ active }: { active: boolean }) {
   );
   const forecastData = filters.forecastProduct && forecast.data?.product === filters.forecastProduct ? forecast.data : null;
   const forecastFrames = forecastData?.frames ?? NO_FRAMES;
-  const explore = filters.basemap === "explore";
   const imageryOn = radarFrames.length > 0 || forecastData !== null;
   const radarPlayback = useFramePlayback(radarFrames, "newest-first");
   const forecastPlayback = useFramePlayback(forecastFrames, "oldest-first");
@@ -172,118 +132,69 @@ export default function StormMap({ active }: { active: boolean }) {
 
   const locate = async () => {
     const fix = await location.request();
-    if (fix) flyTo(fix, 9);
+    if (fix) flyTo(fix, 8);
   };
+
+  const [pitched, setPitched] = useState(false);
+  const style: StyleOptions = {
+    basemap: filters.basemap,
+    theme,
+    muted: imageryOn,
+    terrain: pitched,
+  };
+  const { container, gl } = useGLMap(style, setPitched);
 
   return (
     <div className="relative h-full w-full">
-      <MapContainer
-        bounds={US_BOUNDS}
-        zoomControl={false}
-        worldCopyJump
-        minZoom={3}
-        {...ZOOM}
-        className="h-full w-full"
-      >
-        {explore ? (
-          <ExploreLayer part="base" theme={theme} pane="tilePane" muted={imageryOn} />
-        ) : (
-          <TileLayer
-            url={`${ESRI}/${canvas}_Base/MapServer/tile/{z}/{y}/{x}`}
-            attribution={ESRI_ATTRIBUTION}
-            maxNativeZoom={ESRI_MAX_NATIVE_ZOOM}
-            maxZoom={19}
-            zIndex={1}
-            {...STEADY_TILES}
-          />
-        )}
-        {radarFrames.length > 0 && (
-          <FrameLayer
-            playback={radarPlayback}
-            opacity={filters.radarOpacity}
-            order="newest-first"
-            maxNativeZoom={PRECIP_TYPE_MAX_NATIVE_ZOOM}
-            attribution={PRECIP_TYPE_ATTRIBUTION_HTML}
-          />
-        )}
-        {forecastData && (
-          <FrameLayer
-            playback={forecastPlayback}
-            opacity={filters.radarOpacity}
-            order="oldest-first"
-            maxNativeZoom={forecastProduct(forecastData.product).maxNativeZoom}
-            attribution={forecastData.attribution}
-          />
-        )}
-
-        <Pane name="outlook" style={{ zIndex: PANES.outlook }}>
+      <div ref={container} className="h-full w-full" />
+      {gl && (
+        <GLProvider map={gl}>
+          {radarFrames.length > 0 && (
+            <FrameLayer
+              playback={radarPlayback}
+              opacity={filters.radarOpacity}
+              order="newest-first"
+              maxNativeZoom={PRECIP_TYPE_MAX_NATIVE_ZOOM}
+              attribution={PRECIP_TYPE_ATTRIBUTION_HTML}
+            />
+          )}
+          {forecastData && (
+            <FrameLayer
+              playback={forecastPlayback}
+              opacity={filters.radarOpacity}
+              order="oldest-first"
+              maxNativeZoom={forecastProduct(forecastData.product).maxNativeZoom}
+              attribution={forecastData.attribution}
+            />
+          )}
           {outlookData && <OutlookLayer data={outlookData} theme={theme} />}
-        </Pane>
-        <Pane name="smoke" style={{ zIndex: PANES.smoke, pointerEvents: "none" }}>
           {smokeData && <SmokeLayer plumes={smokeData.plumes} />}
-        </Pane>
-        <Pane name="damage" style={{ zIndex: PANES.damage }}>
           <DamageLayer areas={damageAreas} />
-        </Pane>
-        <Pane name="tropicalAreas" style={{ zIndex: PANES.tropicalAreas }}>
           {tropicalData && <TropicalAreas data={tropicalData} theme={theme} />}
-        </Pane>
-        <Pane name="alerts" style={{ zIndex: PANES.alerts }}>
           <AlertLayer alerts={alerts} onPick={pickAt} />
-        </Pane>
-        <Pane name="perimeters" style={{ zIndex: PANES.perimeters }}>
           {fireData && (
             <PerimeterLayer perimeters={fireData.perimeters} incidents={fireData.incidents} onSelect={setSelectedFire} />
           )}
-        </Pane>
-        <Pane name="borders" style={{ zIndex: PANES.borders, pointerEvents: "none" }}>
           <BorderLayer theme={theme} />
-        </Pane>
-        <Pane name="labels" style={{ zIndex: PANES.labels, pointerEvents: "none" }}>
-          {explore ? (
-            <ExploreLayer part="labels" theme={theme} pane="labels" />
-          ) : (
-            <TileLayer
-              url={`${ESRI}/${canvas}_Reference/MapServer/tile/{z}/{y}/{x}`}
-              maxNativeZoom={ESRI_MAX_NATIVE_ZOOM}
-              maxZoom={19}
-              {...STEADY_TILES}
+          {tropicalData && <TropicalTracks data={tropicalData} theme={theme} onSelect={setSelectedStorm} />}
+          {airData && <AirQualityLayer sites={airData.sites} />}
+          {hotspotData && <HotspotLayer hotspots={hotspotData} now={hotspotsAt} />}
+          {fireData && <FireLayer incidents={fireData.incidents} onSelect={setSelectedFire} />}
+          <ReportLayer reports={reports} onSelect={setSelectedReport} />
+          {location.coord && <UserLocationMarker at={location.coord} accuracy={location.accuracy} />}
+          {pick && (
+            <AlertPickPopup
+              key={pick.n}
+              at={pick.at}
+              alerts={pick.alerts}
+              onSelect={setSelectedAlert}
+              onClose={closePick}
             />
           )}
-        </Pane>
-        <Pane name="tropical" style={{ zIndex: PANES.tropical }}>
-          {tropicalData && <TropicalTracks data={tropicalData} theme={theme} onSelect={setSelectedStorm} />}
-        </Pane>
-        <Pane name="air" style={{ zIndex: PANES.air }}>
-          {airData && <AirQualityLayer sites={airData.sites} />}
-        </Pane>
-        <Pane name="hotspots" style={{ zIndex: PANES.hotspots }}>
-          {hotspotData && <HotspotLayer hotspots={hotspotData} now={hotspotsAt} />}
-        </Pane>
-        <Pane name="fires" style={{ zIndex: PANES.fires }}>
-          {fireData && <FireLayer incidents={fireData.incidents} onSelect={setSelectedFire} />}
-        </Pane>
-        <Pane name="reports" style={{ zIndex: PANES.reports }}>
-          <ReportLayer reports={reports} onSelect={setSelectedReport} />
-        </Pane>
-
-        <Pane name="you" style={{ zIndex: PANES.you }}>
-          {location.coord && <UserLocationMarker at={location.coord} accuracy={location.accuracy} />}
-        </Pane>
-        {pick && (
-          <AlertPickPopup
-            key={pick.n}
-            at={pick.at}
-            alerts={pick.alerts}
-            onSelect={setSelectedAlert}
-            onClose={closePick}
-          />
-        )}
-        <ZoomControl position="bottomright" />
-        <SmoothWheelZoom />
-        <FitOnShow active={active} />
-        {recenter && <Recenter key={recenter.n} to={recenter.to} zoom={recenter.zoom} />}
-      </MapContainer>
+          <FitOnShow active={active} />
+          {recenter && <Recenter key={recenter.n} to={recenter.to} zoom={recenter.zoom} />}
+        </GLProvider>
+      )}
 
       {loading && (
         <div className="pointer-events-none absolute inset-x-0 top-0 z-[500] h-0.5 overflow-hidden bg-accent/20">
@@ -416,20 +327,68 @@ function MapButton({
 }
 
 /**
+ * The map itself, created once, and its style kept in step with `options`:
+ * a new basemap, theme or tilt restyles it in place, overlays and all.
+ * `gl` is null until the first style has loaded.
+ */
+function useGLMap(options: StyleOptions, onPitched: (pitched: boolean) => void) {
+  const container = useRef<HTMLDivElement>(null);
+  const [gl, setGl] = useState<GLMap | null>(null);
+  const latest = useRef(options);
+  useEffect(() => {
+    latest.current = options;
+  });
+
+  useEffect(() => {
+    const map = new GLMap({
+      container: container.current!,
+      style: buildStyle(latest.current),
+      center: [-96, 38],
+      zoom: 3,
+      minZoom: 2,
+      maxZoom: 18,
+      maxPitch: 70,
+      attributionControl: false,
+    });
+    map.addControl(new NavigationControl({ visualizePitch: true }), "bottom-right");
+    map.addControl(new AttributionControl({ compact: true }), "bottom-right");
+    // Compact attribution starts open on a wide map, over the storm layers; start it folded.
+    map.once("load", () =>
+      map.getContainer().querySelector(".maplibregl-ctrl-attrib")?.classList.remove("maplibregl-compact-show"),
+    );
+    const stopIcons = provideIcons(map);
+    map.on("pitchend", () => onPitched(map.getPitch() > TERRAIN_PITCH));
+    map.once("load", () => setGl(map));
+    return () => {
+      stopIcons();
+      map.remove();
+      setGl(null);
+    };
+  }, [onPitched]);
+
+  const { basemap, theme, muted, terrain } = options;
+  useEffect(() => {
+    gl?.setStyle(buildStyle({ basemap, theme, muted, terrain }), { transformStyle: keepOverlays });
+  }, [gl, basemap, theme, muted, terrain]);
+
+  return { container, gl };
+}
+
+/**
  * The map sits in a container that may be hidden when it mounts (the first
- * page opened wasn't the map), so Leaflet can settle on a zero size. Re-measure
- * whenever it's shown, and frame the continental US the first time it has
- * real dimensions.
+ * page opened wasn't the map), so MapLibre can settle on a zero size.
+ * Re-measure whenever it's shown, and frame the continental US the first time
+ * it has real dimensions.
  */
 function FitOnShow({ active }: { active: boolean }) {
-  const map = useMap();
+  const { map } = useGL();
   const framed = useRef(false);
   useEffect(() => {
     if (!active) return;
     const id = window.setTimeout(() => {
-      map.invalidateSize();
+      map.resize();
       if (!framed.current && map.getContainer().clientHeight > 0) {
-        map.fitBounds(US_BOUNDS);
+        map.fitBounds(US, { animate: false });
         framed.current = true;
       }
     }, 0);
@@ -440,9 +399,9 @@ function FitOnShow({ active }: { active: boolean }) {
 
 /** Fly to a point, zooming in to at least `zoom` (never out). */
 function Recenter({ to, zoom }: { to: LatLng; zoom: number }) {
-  const map = useMap();
+  const { map } = useGL();
   useEffect(() => {
-    map.flyTo(to, Math.max(map.getZoom(), zoom), { duration: 0.8 });
+    map.flyTo({ center: [to[1], to[0]], zoom: Math.max(map.getZoom(), zoom), duration: 800 });
   }, [map, to, zoom]);
   return null;
 }
