@@ -79,6 +79,17 @@ describe("storm layers", () => {
     const [d] = parseDisturbances(jsonFixture("nhc-gtwo-points.json"));
     expect(d).toMatchObject({ basin: "Pacific", prob2day: "90%" });
   });
+
+  it("drops an area the service sends as the whole world", () => {
+    const area = (coordinates: number[][]) => ({
+      type: "Feature",
+      properties: { basin: "Pacific", risk7day: "Low", prob7day: "30%" },
+      geometry: { type: "Polygon", coordinates: [coordinates] },
+    });
+    const world = area([[180, -90], [180, 90], [-180, 90], [-180, -90], [180, -90]]);
+    const real = area([[-110, 12], [-105, 12], [-105, 16], [-110, 16], [-110, 12]]);
+    expect(parseOutlookAreas({ type: "FeatureCollection", features: [world, real] })).toHaveLength(1);
+  });
 });
 
 describe("helpers", () => {
