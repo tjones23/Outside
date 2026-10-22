@@ -184,9 +184,17 @@ export function parsePastTrack(json: unknown): TropicalPastSegment[] {
   );
 }
 
+/**
+ * Development areas are a few hundred miles across, in the tropics. NHC's map
+ * service sometimes serves one as the whole world instead — a rectangle from
+ * pole to pole and -180 to 180, seen for an eastern Pacific area — which
+ * would tint the entire map. No real area comes near a pole.
+ */
+const MAX_OUTLOOK_LAT = 70;
+
 export function parseOutlookAreas(json: unknown): TropicalOutlookArea[] {
   return features(json).flatMap(({ props, geometry }) => {
-    const rings = outerRings(geometry);
+    const rings = outerRings(geometry).filter((ring) => ring.every(([lat]) => Math.abs(lat) <= MAX_OUTLOOK_LAT));
     if (rings.length === 0) return [];
     return [
       {
