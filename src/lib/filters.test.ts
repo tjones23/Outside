@@ -97,6 +97,11 @@ describe("normalizeFilters", () => {
     expect(normalizeFilters({ outlookKind: "rainfall", outlookDay: 5 }).outlookDay).toBe(5);
   });
 
+  it("keeps only a known basemap", () => {
+    expect(normalizeFilters({ basemap: "explore" }).basemap).toBe("explore");
+    expect(normalizeFilters({ basemap: "satellite" }).basemap).toBe("gray");
+  });
+
   it("keeps only known alert groups, in catalog order", () => {
     expect(normalizeFilters({ alertGroups: ["heat", "bogus", "severe"] }).alertGroups).toEqual(["severe", "heat"]);
     expect(normalizeFilters({ alertGroups: "heat" }).alertGroups).toEqual(DEFAULT_FILTERS.alertGroups);

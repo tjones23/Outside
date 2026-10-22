@@ -48,6 +48,8 @@ Service and Nominatim, both of which ask for one. It defaults to this repo.
 | [NOAA HMS](https://www.ospo.noaa.gov/products/land/hms.html) | Smoke plumes by density, today's (UTC) analysis or yesterday's until today's is drawn | 30 min, while on |
 | [EPA AirNow](https://www.airnow.gov/) hourly files (`files.airnowtech.org`) | Each monitor's AQI (worst of PM2.5, ozone, PM10, NO₂), newest published hour, US and Canada | 15 min, while on |
 | [Esri Dark Gray Canvas](https://www.esri.com/) | Basemap and labels | — |
+| [OpenFreeMap](https://openfreemap.org/) (OpenStreetMap, OpenMapTiles schema) | The Explore basemap's streets, land cover and labels, as vector tiles drawn by MapLibre GL | — |
+| [Terrain Tiles on AWS](https://registry.opendata.aws/terrain-tiles/) (Mapzen terrarium) | The Explore basemap's terrain shading | — |
 | [Open-Meteo](https://open-meteo.com/) forecast API, `past_days` | A place's last 15 days of snow: HRRR, NBM, ECMWF IFS, GFS, through the blend's snow ratio | 1 h, on opening a place |
 | [USDA NRCS AWDB](https://wcc.sc.egov.usda.gov/awdbRestApi/swagger-ui/index.html) (SNOTEL) | Measured snow depth and water: every station's latest depth for the lists, and the nearest station's last 15 days for a place | 30 min (station list: 1 day) |
 | [Nominatim](https://nominatim.org/) | Place search when saving a location | on submit only |

@@ -21,6 +21,7 @@ import { useStormData } from "../providers/StormDataProvider";
 import { useFilteredData } from "../providers/useFilteredData";
 import { useTheme } from "../providers/useTheme";
 import { BorderLayer } from "./borders";
+import { ExploreLayer } from "./explore";
 import { FireLayer, HotspotLayer, PerimeterLayer, SmokeLayer } from "./fires";
 import { ForecastLegend } from "./ForecastLegend";
 import { AirQualityLayer } from "./air";
@@ -129,6 +130,8 @@ export default function StormMap({ active }: { active: boolean }) {
   );
   const forecastData = filters.forecastProduct && forecast.data?.product === filters.forecastProduct ? forecast.data : null;
   const forecastFrames = forecastData?.frames ?? NO_FRAMES;
+  const explore = filters.basemap === "explore";
+  const imageryOn = radarFrames.length > 0 || forecastData !== null;
   const radarPlayback = useFramePlayback(radarFrames, "newest-first");
   const forecastPlayback = useFramePlayback(forecastFrames, "oldest-first");
   const outlookData = outlook.data;
@@ -182,14 +185,18 @@ export default function StormMap({ active }: { active: boolean }) {
         {...ZOOM}
         className="h-full w-full"
       >
-        <TileLayer
-          url={`${ESRI}/${canvas}_Base/MapServer/tile/{z}/{y}/{x}`}
-          attribution={ESRI_ATTRIBUTION}
-          maxNativeZoom={ESRI_MAX_NATIVE_ZOOM}
-          maxZoom={19}
-          zIndex={1}
-          {...STEADY_TILES}
-        />
+        {explore ? (
+          <ExploreLayer part="base" theme={theme} pane="tilePane" muted={imageryOn} />
+        ) : (
+          <TileLayer
+            url={`${ESRI}/${canvas}_Base/MapServer/tile/{z}/{y}/{x}`}
+            attribution={ESRI_ATTRIBUTION}
+            maxNativeZoom={ESRI_MAX_NATIVE_ZOOM}
+            maxZoom={19}
+            zIndex={1}
+            {...STEADY_TILES}
+          />
+        )}
         {radarFrames.length > 0 && (
           <FrameLayer
             playback={radarPlayback}
@@ -233,12 +240,16 @@ export default function StormMap({ active }: { active: boolean }) {
           <BorderLayer theme={theme} />
         </Pane>
         <Pane name="labels" style={{ zIndex: PANES.labels, pointerEvents: "none" }}>
-          <TileLayer
-            url={`${ESRI}/${canvas}_Reference/MapServer/tile/{z}/{y}/{x}`}
-            maxNativeZoom={ESRI_MAX_NATIVE_ZOOM}
-            maxZoom={19}
-            {...STEADY_TILES}
-          />
+          {explore ? (
+            <ExploreLayer part="labels" theme={theme} pane="labels" />
+          ) : (
+            <TileLayer
+              url={`${ESRI}/${canvas}_Reference/MapServer/tile/{z}/{y}/{x}`}
+              maxNativeZoom={ESRI_MAX_NATIVE_ZOOM}
+              maxZoom={19}
+              {...STEADY_TILES}
+            />
+          )}
         </Pane>
         <Pane name="tropical" style={{ zIndex: PANES.tropical }}>
           {tropicalData && <TropicalTracks data={tropicalData} theme={theme} onSelect={setSelectedStorm} />}

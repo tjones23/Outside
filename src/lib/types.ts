@@ -206,7 +206,11 @@ export interface FilterSettings {
   showSmoke: boolean;
   /** EPA AirNow monitors, colored by AQI. */
   showAirQuality: boolean;
+  /** The map underneath everything: Esri's gray canvas, or the terrain-shaded vector map. */
+  basemap: Basemap;
 }
+
+export type Basemap = "gray" | "explore";
 
 export interface NotificationSettings {
   /** Notify when a new warning covers one of your saved locations. */
