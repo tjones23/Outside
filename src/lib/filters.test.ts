@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_FILTERS,
+  normalizeAlertsFilters,
   normalizeFilters,
   passesAlert,
   passesReport,
@@ -66,6 +67,12 @@ describe("passesAlert", () => {
 
   it("respects the category", () => {
     expect(passesAlert(f({ showTornado: false }), warning)).toBe(false);
+  });
+
+  it("ignores storm types on the alerts page, which has no chips for them", () => {
+    const saved = normalizeAlertsFilters(f({ showTornado: false, showWind: false, showHail: false, showWatches: false }));
+    expect(passesAlert(saved, warning)).toBe(true);
+    expect(passesAlert(saved, watch)).toBe(false);
   });
 
   it("leaves the storm categories out of non-convective alerts", () => {

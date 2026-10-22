@@ -114,6 +114,16 @@ export function normalizeFilters(input: unknown): FilterSettings {
   };
 }
 
+/**
+ * The alerts page's settings, which filter by hazard family and tier only.
+ * Its set began as a copy of the map's, so storm types switched off there
+ * would otherwise hide tornado and severe thunderstorm alerts with no chip to
+ * bring them back.
+ */
+export function normalizeAlertsFilters(input: unknown): FilterSettings {
+  return { ...normalizeFilters(input), showTornado: true, showWind: true, showHail: true };
+}
+
 export function isGroupEnabled(filters: FilterSettings, group: AlertGroup): boolean {
   return filters.alertGroups.includes(group);
 }

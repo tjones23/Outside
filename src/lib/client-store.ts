@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useSyncExternalStore } from "react";
-import { DEFAULT_FILTERS, normalizeFilters, CATEGORY_KEY, type FilterScope } from "./filters";
+import { DEFAULT_FILTERS, normalizeAlertsFilters, normalizeFilters, CATEGORY_KEY, type FilterScope } from "./filters";
 import { newId } from "./id";
 import { SKI_PASSES, type ResortSort, type SkiPass } from "./resorts";
 import { DEFAULT_THEME_PREFERENCE, parseThemePreference, THEME_STORAGE_KEY, type ThemePreference } from "./theme";
@@ -140,7 +140,7 @@ function readFilters(key: string): FilterSettings {
 /** One page's filters — see `FILTER_SCOPES`. */
 export function useFilters(scope: FilterScope) {
   const key = FILTERS_KEYS[scope];
-  const filters = useStored(key, normalizeFilters, DEFAULT_FILTERS);
+  const filters = useStored(key, scope === "alerts" ? normalizeAlertsFilters : normalizeFilters, DEFAULT_FILTERS);
 
   // Read the latest stored value rather than closing over `filters`, so two
   // quick changes in one event can't overwrite each other.
