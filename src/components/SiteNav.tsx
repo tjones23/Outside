@@ -16,7 +16,7 @@ const NAV = [
 ] as const;
 
 function useWarningCount(): number {
-  const { alerts } = useFilteredData();
+  const { alerts } = useFilteredData("alerts");
   return alerts.filter((a) => a.isWarning).length;
 }
 

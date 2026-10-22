@@ -19,7 +19,7 @@ type Radius = (typeof REPORT_RADIUS_OPTIONS)[number];
 
 /** SPC storm reports, newest first, optionally limited to a radius around you. */
 export function ReportsList() {
-  const { reports, filters } = useFilteredData();
+  const { reports, filters } = useFilteredData("reports");
   const { reports: feed } = useStormData();
   const location = useLocation();
   const now = useNow();
@@ -51,7 +51,8 @@ export function ReportsList() {
     setRadius(next);
   };
 
-  const failedDays = feed.data?.days.filter((d) => !d.ok) ?? [];
+  // The feed may cover more days than this page shows, for the map's sake.
+  const failedDays = feed.data?.days.slice(0, filters.reportDays).filter((d) => !d.ok) ?? [];
 
   return (
     <>
@@ -131,7 +132,7 @@ export function ReportsList() {
         </ul>
       )}
 
-      {showFilters && <FiltersPanel onClose={() => setShowFilters(false)} />}
+      {showFilters && <FiltersPanel scope="reports" onClose={() => setShowFilters(false)} />}
       {selected && <ReportDetail report={selected} onClose={() => setSelected(null)} />}
     </>
   );

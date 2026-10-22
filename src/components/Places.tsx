@@ -36,7 +36,7 @@ export function Places() {
   const { view, setView } = usePlacesView();
   const hydrated = useHydrated();
   const { locations, add, remove, move, relink } = useSavedLocations();
-  const { allAlerts, reports } = useFilteredData();
+  const { allAlerts, reports } = useFilteredData("reports");
   const location = useLocation();
   const here = roundHere(location.coord);
   const ids = useId();
