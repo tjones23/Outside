@@ -86,9 +86,14 @@ const SOURCES = [
     what: "The hourly Air Quality Index from EPA, state, local and tribal monitors in the US, and Canada's, colored by EPA category. Each monitor shows its worst pollutant — usually PM2.5 near smoke, ozone on hot afternoons. Readings arrive an hour or two after the hour.",
   },
   {
-    name: "Esri Gray Canvas",
-    href: "https://www.esri.com/",
-    what: "The map and its labels, in Dark Gray or Light Gray to match the theme. Esri, HERE, Garmin, © OpenStreetMap contributors.",
+    name: "OpenFreeMap",
+    href: "https://openfreemap.org/",
+    what: "The map: streets, land cover, water and labels, as OpenMapTiles vector tiles of OpenStreetMap data, drawn by MapLibre GL in light or dark to match the theme. © OpenMapTiles, © OpenStreetMap contributors.",
+  },
+  {
+    name: "Terrain Tiles on AWS Open Data",
+    href: "https://registry.opendata.aws/terrain-tiles/",
+    what: "Elevation for the map's terrain shading, and its 3D terrain when tilted. Mapzen's terrarium tiles, built from USGS, SRTM and other public elevation data.",
   },
   {
     name: "OpenStreetMap Nominatim",

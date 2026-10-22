@@ -14,7 +14,6 @@ import {
 } from "./map-style";
 
 const options = (patch: Partial<StyleOptions> = {}): StyleOptions => ({
-  basemap: "gray",
   theme: "light",
   muted: false,
   terrain: false,
@@ -23,27 +22,25 @@ const options = (patch: Partial<StyleOptions> = {}): StyleOptions => ({
 const ids = (layers: LayerSpecification[]) => layers.map((l) => l.id);
 
 describe("buildStyle", () => {
-  for (const basemap of ["gray", "explore"] as const) {
-    for (const theme of ["light", "dark"] as const) {
-      it(`is a valid MapLibre style (${basemap}, ${theme})`, () => {
-        expect(validateStyleMin(buildStyle(options({ basemap, theme, muted: true, terrain: true })))).toEqual([]);
-      });
-    }
+  for (const theme of ["light", "dark"] as const) {
+    it(`is a valid MapLibre style (${theme})`, () => {
+      expect(validateStyleMin(buildStyle(options({ theme })))).toEqual([]);
+      expect(validateStyleMin(buildStyle(options({ theme, muted: true, terrain: true })))).toEqual([]);
+    });
   }
 
   it("has every slot, in order, with the basemap's labels in the labels slot", () => {
-    for (const basemap of ["gray", "explore"] as const) {
-      const layers = ids(buildStyle(options({ basemap })).layers);
-      const markers = SLOTS.map((s) => layers.indexOf(slotMarker(s)));
-      expect(markers.every((at, i) => at >= 0 && (i === 0 || at > markers[i - 1]))).toBe(true);
-      const labelsAt = layers.indexOf(slotMarker("labels"));
-      expect(layers[labelsAt + 1]).toMatch(basemap === "gray" ? "esri-labels" : /name|water|park|peak/);
-    }
+    const layers = ids(buildStyle(options()).layers);
+    const markers = SLOTS.map((s) => layers.indexOf(slotMarker(s)));
+    expect(markers.every((at, i) => at >= 0 && (i === 0 || at > markers[i - 1]))).toBe(true);
+    const labelsAt = layers.indexOf(slotMarker("labels"));
+    expect(layers[labelsAt + 1]).toMatch(/name|water|park|peak/);
+    expect(layers.indexOf("hillshade")).toBeLessThan(markers[0]);
   });
 
-  it("raises terrain only on the Explore map", () => {
-    expect(buildStyle(options({ basemap: "explore", terrain: true })).terrain).toBeDefined();
-    expect(buildStyle(options({ basemap: "gray", terrain: true })).terrain).toBeUndefined();
+  it("raises terrain, with a sky, only when asked", () => {
+    expect(buildStyle(options({ terrain: true }))).toMatchObject({ terrain: {}, sky: {} });
+    expect(buildStyle(options()).terrain).toBeUndefined();
   });
 
   it("puts the last slot's overlays on top", () => {
@@ -53,8 +50,8 @@ describe("buildStyle", () => {
 });
 
 describe("keepOverlays", () => {
-  it("carries overlays into a new basemap, each in its own slot", () => {
-    const before = buildStyle(options({ basemap: "gray" }));
+  it("carries overlays into a restyled map, each in its own slot", () => {
+    const before = buildStyle(options({ theme: "light" }));
     const alerts: LayerSpecification = { id: `${OVERLAY_PREFIX}alerts:fill`, type: "fill", source: `${OVERLAY_PREFIX}alerts` };
     const reports: LayerSpecification = { id: `${OVERLAY_PREFIX}reports:dots`, type: "circle", source: `${OVERLAY_PREFIX}reports` };
     const insert = (layers: LayerSpecification[], layer: LayerSpecification, slot: (typeof SLOTS)[number]) => {
@@ -66,13 +63,12 @@ describe("keepOverlays", () => {
     insert(before.layers, reports, "reports");
     before.sources[`${OVERLAY_PREFIX}alerts`] = { type: "geojson", data: { type: "FeatureCollection", features: [] } };
 
-    const after = keepOverlays(before, buildStyle(options({ basemap: "explore" })));
+    const after = keepOverlays(before, buildStyle(options({ theme: "dark", terrain: true })));
     const layers = ids(after.layers);
     expect(layers.indexOf(alerts.id)).toBe(layers.indexOf(slotMarker("perimeters")) - 1);
     expect(layers.indexOf(reports.id)).toBe(layers.indexOf(slotMarker("you")) - 1);
     expect(after.sources).toHaveProperty(`${OVERLAY_PREFIX}alerts`);
-    expect(after.sources).not.toHaveProperty("esri-base");
-    expect(layers).not.toContain("esri-base");
+    expect(after.terrain).toBeDefined();
   });
 });
 

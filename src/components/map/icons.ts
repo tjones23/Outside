@@ -6,7 +6,7 @@ import { CONTAINMENT_BANDS, type ContainmentBand } from "@/lib/wildfire";
  * Icons the map draws itself: a flame per containment band, and an AQI dot
  * per value. They're painted onto a canvas the first time a layer asks for
  * one (MapLibre's missing-image resolver), which also brings them back after
- * a basemap swap clears the style's images.
+ * a restyle (theme, tilt) clears the style's images.
  */
 
 /**

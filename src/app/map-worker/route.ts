@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
 /**
- * MapLibre's tile worker, for the Explore basemap.
+ * MapLibre's tile worker, for the map.
  *
  * MapLibre loads its worker from a file beside its own script, which a bundle
  * doesn't have. It is served from here instead — same-origin, so the

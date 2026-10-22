@@ -29,11 +29,9 @@ export interface HeaderOptions {
  * caches, and NWS forecast tiles (`/api/ndfd`) — is same-origin.
  */
 export const MAP_HOSTS = [
-  // The gray basemaps and their labels (Esri Dark Gray and Light Gray Canvas).
-  "https://server.arcgisonline.com",
   // HRRR future-radar frames (Iowa Environmental Mesonet).
   "https://mesonet.agron.iastate.edu",
-  // The Explore basemap: vector tiles and fonts, and terrain.
+  // The basemap: vector tiles and fonts, and terrain.
   ...EXPLORE_HOSTS,
 ] as const;
 

@@ -9,7 +9,7 @@ import { adjusted, rgbComponents, toHex } from "./color";
 import type { Theme } from "./theme";
 
 /**
- * The "Explore" basemap: a vector map in the spirit of Apple Maps' Explore
+ * The basemap ("Explore"): a vector map in the spirit of Apple Maps' Explore
  * mode — soft land cover, blue water, white roads and terrain shading —
  * drawn by MapLibre GL.
  *
@@ -19,7 +19,7 @@ import type { Theme } from "./theme";
  * - terrain: the Terrain Tiles on AWS Open Data (Mapzen's terrarium DEM).
  *
  * The layers come in two parts: the base under radar and warnings, and the
- * labels above them — the same split as Esri's base and reference tiles.
+ * labels above them.
  * `map-style.ts` puts them in place around the overlays.
  */
 

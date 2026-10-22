@@ -53,7 +53,7 @@ const US: [[number, number], [number, number]] = [
   [US_BOUNDS[1][1], US_BOUNDS[1][0]],
 ];
 
-/** Tilted past this, the Explore map raises its terrain. */
+/** Tilted past this, the map raises its terrain. */
 const TERRAIN_PITCH = 5;
 
 export default function StormMap({ active }: { active: boolean }) {
@@ -136,12 +136,7 @@ export default function StormMap({ active }: { active: boolean }) {
   };
 
   const [pitched, setPitched] = useState(false);
-  const style: StyleOptions = {
-    basemap: filters.basemap,
-    theme,
-    muted: imageryOn,
-    terrain: pitched,
-  };
+  const style: StyleOptions = { theme, muted: imageryOn, terrain: pitched };
   const { container, gl } = useGLMap(style, setPitched);
 
   return (
@@ -328,7 +323,7 @@ function MapButton({
 
 /**
  * The map itself, created once, and its style kept in step with `options`:
- * a new basemap, theme or tilt restyles it in place, overlays and all.
+ * a new theme, fading or tilt restyles it in place, overlays and all.
  * `gl` is null until the first style has loaded.
  */
 function useGLMap(options: StyleOptions, onPitched: (pitched: boolean) => void) {
@@ -366,10 +361,10 @@ function useGLMap(options: StyleOptions, onPitched: (pitched: boolean) => void) 
     };
   }, [onPitched]);
 
-  const { basemap, theme, muted, terrain } = options;
+  const { theme, muted, terrain } = options;
   useEffect(() => {
-    gl?.setStyle(buildStyle({ basemap, theme, muted, terrain }), { transformStyle: keepOverlays });
-  }, [gl, basemap, theme, muted, terrain]);
+    gl?.setStyle(buildStyle({ theme, muted, terrain }), { transformStyle: keepOverlays });
+  }, [gl, theme, muted, terrain]);
 
   return { container, gl };
 }
