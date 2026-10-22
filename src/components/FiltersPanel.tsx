@@ -1,7 +1,7 @@
 "use client";
 
 import { useFilters } from "@/lib/client-store";
-import { HAIL_MAX, HAIL_STEP, REPORT_DAY_OPTIONS, WIND_MAX, WIND_MIN, type FilterScope } from "@/lib/filters";
+import { HAIL_MAX, HAIL_STEP, REPORT_DAY_OPTIONS, WIND_MAX, WIND_MIN } from "@/lib/filters";
 import { FORECAST_PRODUCTS } from "@/lib/forecast";
 import { availableDays, clampDay, OUTLOOK_KINDS, outlookKindChip } from "@/lib/outlook";
 import type { ForecastProductId, OutlookKind } from "@/lib/types";
@@ -14,14 +14,10 @@ import { Button, Chip, SectionTitle, Switch } from "./ui/controls";
  * snapping as the mobile filter screen — without its quirk of turning a
  * "no minimum" wind filter into 60 mph just by opening it.
  *
- * The map gets every section; the reports list only the storm report ones,
- * and the alerts list only the alert ones.
+ * The map's alone: the reports and alerts lists filter with chips at the top.
  */
-export function FiltersPanel({ scope, onClose }: { scope: FilterScope; onClose: () => void }) {
-  const { filters: f, update, reset } = useFilters(scope);
-  const showAlerts = scope !== "reports";
-  const showReports = scope !== "alerts";
-  const showLayers = scope === "map";
+export function FiltersPanel({ onClose }: { onClose: () => void }) {
+  const { filters: f, update, reset } = useFilters("map");
 
   const selectKind = (kind: OutlookKind | null) =>
     update({ outlookKind: kind, outlookDay: kind ? clampDay(kind, f.outlookDay) : f.outlookDay });
@@ -45,166 +41,154 @@ export function FiltersPanel({ scope, onClose }: { scope: FilterScope; onClose: 
       }
     >
       <SectionTitle>Storm types</SectionTitle>
-      <CategoryChips scope={scope} />
+      <CategoryChips scope="map" />
 
-      {showAlerts && (
-        <>
-          <SectionTitle>Alerts</SectionTitle>
-          <AlertKindChips scope={scope} />
-          <div className="mt-2">
-            <AlertGroupChips scope={scope} />
-          </div>
-          <p className="mt-1.5 text-xs text-muted-dim">
-            Tornado / wind / hail above also apply to tornado and severe thunderstorm alerts.
-          </p>
-        </>
+      <SectionTitle>Alerts</SectionTitle>
+      <AlertKindChips scope="map" />
+      <div className="mt-2">
+        <AlertGroupChips scope="map" />
+      </div>
+      <p className="mt-1.5 text-xs text-muted-dim">
+        Tornado / wind / hail above also apply to tornado and severe thunderstorm alerts.
+      </p>
+
+      <SectionTitle>Minimum magnitude</SectionTitle>
+      <Slider
+        label="Wind"
+        value={f.minWindMph}
+        display={f.minWindMph <= 0 ? "Any" : `${f.minWindMph} mph`}
+        min={WIND_MIN - 1}
+        max={WIND_MAX}
+        step={1}
+        // The first notch below 60 mph is "Any".
+        onChange={(v) => update({ minWindMph: v < WIND_MIN ? 0 : v })}
+        sliderValue={f.minWindMph <= 0 ? WIND_MIN - 1 : f.minWindMph}
+      />
+      <Slider
+        label="Hail"
+        value={f.minHailInches}
+        display={f.minHailInches <= 0 ? "Any" : `${f.minHailInches.toFixed(2)} in`}
+        min={0}
+        max={HAIL_MAX}
+        step={HAIL_STEP}
+        onChange={(v) => update({ minHailInches: v })}
+      />
+      <p className="-mt-1 mb-2 text-xs text-muted-dim">Penny ≈ 0.75″ · quarter ≈ 1.00″ · golf ball ≈ 1.75″</p>
+      <div className="flex items-center gap-3 py-2">
+        <span className="w-16 text-sm">Tornado</span>
+        <div className="flex flex-wrap gap-1.5">
+          {[null, 0, 1, 2, 3, 4, 5].map((r) => (
+            <Chip key={String(r)} on={f.minTornadoRating === r} onClick={() => update({ minTornadoRating: r })}>
+              {r === null ? "Any" : `EF${r}+`}
+            </Chip>
+          ))}
+        </div>
+      </div>
+
+      <SectionTitle>Reports from</SectionTitle>
+      <div className="flex flex-wrap gap-2">
+        {REPORT_DAY_OPTIONS.map((d) => (
+          <Chip key={d} on={f.reportDays === d} onClick={() => update({ reportDays: d })}>
+            {d === 1 ? "Today" : `Last ${d} days`}
+          </Chip>
+        ))}
+      </div>
+
+      <SectionTitle>Outlook</SectionTitle>
+      <div className="flex flex-wrap gap-2">
+        <Chip on={f.outlookKind === null} onClick={() => selectKind(null)}>
+          Off
+        </Chip>
+        {OUTLOOK_KINDS.map((k) => (
+          <Chip key={k} on={f.outlookKind === k} onClick={() => selectKind(k)}>
+            {outlookKindChip(k)}
+          </Chip>
+        ))}
+      </div>
+      <p className="mt-1.5 text-xs text-muted-dim">
+        Storm Prediction Center convective risk, or the Weather Prediction Center&apos;s excessive rainfall (flash
+        flood) risk.
+      </p>
+      {f.outlookKind && (
+        <div className="mt-2 flex flex-wrap gap-2">
+          {availableDays(f.outlookKind).map((d) => (
+            <Chip key={d} on={f.outlookDay === d} onClick={() => update({ outlookDay: d })}>
+              Day {d}
+            </Chip>
+          ))}
+        </div>
       )}
 
-      {showReports && (
-        <>
-          <SectionTitle>Minimum magnitude</SectionTitle>
-          <Slider
-            label="Wind"
-            value={f.minWindMph}
-            display={f.minWindMph <= 0 ? "Any" : `${f.minWindMph} mph`}
-            min={WIND_MIN - 1}
-            max={WIND_MAX}
-            step={1}
-            // The first notch below 60 mph is "Any".
-            onChange={(v) => update({ minWindMph: v < WIND_MIN ? 0 : v })}
-            sliderValue={f.minWindMph <= 0 ? WIND_MIN - 1 : f.minWindMph}
-          />
-          <Slider
-            label="Hail"
-            value={f.minHailInches}
-            display={f.minHailInches <= 0 ? "Any" : `${f.minHailInches.toFixed(2)} in`}
-            min={0}
-            max={HAIL_MAX}
-            step={HAIL_STEP}
-            onChange={(v) => update({ minHailInches: v })}
-          />
-          <p className="-mt-1 mb-2 text-xs text-muted-dim">Penny ≈ 0.75″ · quarter ≈ 1.00″ · golf ball ≈ 1.75″</p>
-          <div className="flex items-center gap-3 py-2">
-            <span className="w-16 text-sm">Tornado</span>
-            <div className="flex flex-wrap gap-1.5">
-              {[null, 0, 1, 2, 3, 4, 5].map((r) => (
-                <Chip key={String(r)} on={f.minTornadoRating === r} onClick={() => update({ minTornadoRating: r })}>
-                  {r === null ? "Any" : `EF${r}+`}
-                </Chip>
-              ))}
-            </div>
-          </div>
+      <SectionTitle>Tropical</SectionTitle>
+      <Switch
+        label="Hurricanes and tropical storms"
+        description="National Hurricane Center tracks, forecast cones, coastal watches and warnings, and areas to watch."
+        checked={f.showTropical}
+        onChange={(v) => update({ showTropical: v })}
+      />
 
-          <SectionTitle>Reports from</SectionTitle>
-          <div className="flex flex-wrap gap-2">
-            {REPORT_DAY_OPTIONS.map((d) => (
-              <Chip key={d} on={f.reportDays === d} onClick={() => update({ reportDays: d })}>
-                {d === 1 ? "Today" : `Last ${d} days`}
-              </Chip>
-            ))}
-          </div>
-        </>
-      )}
+      <SectionTitle>Wildfire</SectionTitle>
+      <Switch
+        label="Fires and perimeters"
+        description="Every wildfire not yet declared out, sized by acres and colored by containment, with its mapped perimeter — from the interagency record (NIFC)."
+        checked={f.showFires}
+        onChange={(v) => update({ showFires: v })}
+      />
+      <Switch
+        label="Satellite hotspots"
+        description="Heat detected in the last 24 hours by the VIIRS instruments on NASA and NOAA satellites — often the first sign of a new fire, and where a big one is running."
+        checked={f.showHotspots}
+        onChange={(v) => update({ showHotspots: v })}
+      />
+      <Switch
+        label="Smoke"
+        description="Smoke plumes traced on satellite imagery by NOAA's Hazard Mapping System, by density. Updated through the day."
+        checked={f.showSmoke}
+        onChange={(v) => update({ showSmoke: v })}
+      />
 
-      {showLayers && (
-        <>
-          <SectionTitle>Outlook</SectionTitle>
-          <div className="flex flex-wrap gap-2">
-            <Chip on={f.outlookKind === null} onClick={() => selectKind(null)}>
-              Off
-            </Chip>
-            {OUTLOOK_KINDS.map((k) => (
-              <Chip key={k} on={f.outlookKind === k} onClick={() => selectKind(k)}>
-                {outlookKindChip(k)}
-              </Chip>
-            ))}
-          </div>
-          <p className="mt-1.5 text-xs text-muted-dim">
-            Storm Prediction Center convective risk, or the Weather Prediction Center&apos;s excessive rainfall (flash
-            flood) risk.
-          </p>
-          {f.outlookKind && (
-            <div className="mt-2 flex flex-wrap gap-2">
-              {availableDays(f.outlookKind).map((d) => (
-                <Chip key={d} on={f.outlookDay === d} onClick={() => update({ outlookDay: d })}>
-                  Day {d}
-                </Chip>
-              ))}
-            </div>
-          )}
+      <SectionTitle>Air quality</SectionTitle>
+      <Switch
+        label="Air quality monitors"
+        description="The latest hourly AQI from EPA AirNow's monitors in the US and Canada, colored the EPA way. Readings are an hour or two old."
+        checked={f.showAirQuality}
+        onChange={(v) => update({ showAirQuality: v })}
+      />
 
-          <SectionTitle>Tropical</SectionTitle>
-          <Switch
-            label="Hurricanes and tropical storms"
-            description="National Hurricane Center tracks, forecast cones, coastal watches and warnings, and areas to watch."
-            checked={f.showTropical}
-            onChange={(v) => update({ showTropical: v })}
-          />
-
-          <SectionTitle>Wildfire</SectionTitle>
-          <Switch
-            label="Fires and perimeters"
-            description="Every wildfire not yet declared out, sized by acres and colored by containment, with its mapped perimeter — from the interagency record (NIFC)."
-            checked={f.showFires}
-            onChange={(v) => update({ showFires: v })}
-          />
-          <Switch
-            label="Satellite hotspots"
-            description="Heat detected in the last 24 hours by the VIIRS instruments on NASA and NOAA satellites — often the first sign of a new fire, and where a big one is running."
-            checked={f.showHotspots}
-            onChange={(v) => update({ showHotspots: v })}
-          />
-          <Switch
-            label="Smoke"
-            description="Smoke plumes traced on satellite imagery by NOAA's Hazard Mapping System, by density. Updated through the day."
-            checked={f.showSmoke}
-            onChange={(v) => update({ showSmoke: v })}
-          />
-
-          <SectionTitle>Air quality</SectionTitle>
-          <Switch
-            label="Air quality monitors"
-            description="The latest hourly AQI from EPA AirNow's monitors in the US and Canada, colored the EPA way. Readings are an hour or two old."
-            checked={f.showAirQuality}
-            onChange={(v) => update({ showAirQuality: v })}
-          />
-
-          <SectionTitle>Radar &amp; forecast</SectionTitle>
-          <div className="flex flex-wrap gap-2">
-            <Chip on={imagery === "off"} onClick={() => selectImagery("off")}>
-              Off
-            </Chip>
-            <Chip on={imagery === "radar"} onClick={() => selectImagery("radar")}>
-              Radar (past hour)
-            </Chip>
-          </div>
-          <p className="mt-1.5 text-xs text-muted-dim">
-            Radar is NOAA&apos;s MRMS mosaic of every NEXRAD radar, colored rain or snow — continental US only.
-          </p>
-          <p className="mb-1.5 mt-3 text-xs text-muted-dim">Forecast animations</p>
-          <div className="flex flex-wrap gap-2">
-            {FORECAST_PRODUCTS.map((p) => (
-              <Chip key={p.id} on={imagery === p.id} onClick={() => selectImagery(p.id)}>
-                {p.name}
-              </Chip>
-            ))}
-          </div>
-          <p className="mt-1.5 text-xs text-muted-dim">
-            Future radar is NOAA&apos;s HRRR model, 18 hours ahead hour by hour. The rest are the National Weather
-            Service&apos;s forecast, a week ahead.
-          </p>
-          {imagery !== "off" && (
-            <Slider
-              label="Opacity"
-              value={f.radarOpacity}
-              display={`${Math.round(f.radarOpacity * 100)}%`}
-              min={0.1}
-              max={1}
-              step={0.05}
-              onChange={(v) => update({ radarOpacity: v })}
-            />
-          )}
-        </>
+      <SectionTitle>Radar &amp; forecast</SectionTitle>
+      <div className="flex flex-wrap gap-2">
+        <Chip on={imagery === "off"} onClick={() => selectImagery("off")}>
+          Off
+        </Chip>
+        <Chip on={imagery === "radar"} onClick={() => selectImagery("radar")}>
+          Radar (past hour)
+        </Chip>
+      </div>
+      <p className="mt-1.5 text-xs text-muted-dim">
+        Radar is NOAA&apos;s MRMS mosaic of every NEXRAD radar, colored rain or snow — continental US only.
+      </p>
+      <p className="mb-1.5 mt-3 text-xs text-muted-dim">Forecast animations</p>
+      <div className="flex flex-wrap gap-2">
+        {FORECAST_PRODUCTS.map((p) => (
+          <Chip key={p.id} on={imagery === p.id} onClick={() => selectImagery(p.id)}>
+            {p.name}
+          </Chip>
+        ))}
+      </div>
+      <p className="mt-1.5 text-xs text-muted-dim">
+        Future radar is NOAA&apos;s HRRR model, 18 hours ahead hour by hour. The rest are the National Weather
+        Service&apos;s forecast, a week ahead.
+      </p>
+      {imagery !== "off" && (
+        <Slider
+          label="Opacity"
+          value={f.radarOpacity}
+          display={`${Math.round(f.radarOpacity * 100)}%`}
+          min={0.1}
+          max={1}
+          step={0.05}
+          onChange={(v) => update({ radarOpacity: v })}
+        />
       )}
     </Sheet>
   );

@@ -272,7 +272,7 @@ export default function StormMap({ active }: { active: boolean }) {
         )}
       </div>
 
-      {showFilters && <FiltersPanel scope="map" onClose={() => setShowFilters(false)} />}
+      {showFilters && <FiltersPanel onClose={() => setShowFilters(false)} />}
       {selectedAlert && <AlertDetail alert={selectedAlert} onClose={() => setSelectedAlert(null)} />}
       {selectedReport && <ReportDetail report={selectedReport} onClose={() => setSelectedReport(null)} />}
       {selectedFire && (

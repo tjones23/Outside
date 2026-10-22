@@ -3,11 +3,11 @@
 import { useMemo, useState } from "react";
 import { alertGroupGlyph, alertLevelName } from "@/lib/alert-catalog";
 import { sortAlerts, type AlertSort } from "@/lib/alerts";
+import { useFilters } from "@/lib/client-store";
 import { formatDateTime } from "@/lib/format";
 import type { AlertLevel, StormAlert } from "@/lib/types";
 import { AlertDetail } from "./Details";
-import { AlertGroupChips, AlertKindChips } from "./FilterChips";
-import { FiltersPanel } from "./FiltersPanel";
+import { AlertGroupChips, AlertKindChips, CategoryChips } from "./FilterChips";
 import { PageHeader } from "./PageHeader";
 import { useLocation } from "./providers/LocationProvider";
 import { useStormData } from "./providers/StormDataProvider";
@@ -33,7 +33,7 @@ export function AlertsList() {
   const [sort, setSort] = useState<AlertSort>("recent");
   const [ascending, setAscending] = useState(false);
   const [selected, setSelected] = useState<StormAlert | null>(null);
-  const [showFilters, setShowFilters] = useState(false);
+  const { reset } = useFilters("alerts");
 
   const sorted = useMemo(
     () => sortAlerts(alerts, sort, ascending, location.coord),
@@ -56,13 +56,20 @@ export function AlertsList() {
       <PageHeader
         title="Alerts"
         subtitle={`${counts.length ? counts.join(" · ") : "Nothing active"} from the National Weather Service`}
-        actions={<Button onClick={() => setShowFilters(true)}>Filters</Button>}
+        actions={
+          <Button variant="ghost" onClick={reset} className="px-3 py-1">
+            Reset filters
+          </Button>
+        }
       />
 
       <div className="mb-3">
         <AlertGroupChips scope="alerts" />
       </div>
       <div className="mb-4 flex flex-wrap items-center gap-2">
+        {/* Tornado / wind / hail narrow the tornado and severe thunderstorm alerts. */}
+        <CategoryChips scope="alerts" />
+        <span className="mx-1 h-5 w-px bg-line" aria-hidden="true" />
         <AlertKindChips scope="alerts" />
         <span className="mx-1 h-5 w-px bg-line" aria-hidden="true" />
         {SORTS.map(({ mode, label }) => (
@@ -117,7 +124,6 @@ export function AlertsList() {
         </ul>
       )}
 
-      {showFilters && <FiltersPanel scope="alerts" onClose={() => setShowFilters(false)} />}
       {selected && <AlertDetail alert={selected} onClose={() => setSelected(null)} />}
     </>
   );

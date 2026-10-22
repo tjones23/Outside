@@ -2,12 +2,13 @@
 
 import { useMemo, useState } from "react";
 import { CATEGORIES, categoryColor, categoryGlyph, categoryName } from "@/lib/categories";
+import { useFilters } from "@/lib/client-store";
 import { formatMiles, formatUtcTime } from "@/lib/format";
 import { REPORT_RADIUS_OPTIONS, reportsWithin } from "@/lib/nearby";
 import { dayLabel } from "@/lib/reports";
 import type { StormReport } from "@/lib/types";
 import { ReportDetail } from "./Details";
-import { FiltersPanel } from "./FiltersPanel";
+import { CategoryChips, MagnitudeChips, ReportDayChips } from "./FilterChips";
 import { PageHeader } from "./PageHeader";
 import { useLocation } from "./providers/LocationProvider";
 import { useStormData } from "./providers/StormDataProvider";
@@ -25,7 +26,7 @@ export function ReportsList() {
   const now = useNow();
   const [radius, setRadius] = useState<Radius>(null);
   const [selected, setSelected] = useState<StormReport | null>(null);
-  const [showFilters, setShowFilters] = useState(false);
+  const { reset } = useFilters("reports");
 
   const rows = useMemo(() => {
     if (radius !== null && location.coord) {
@@ -60,13 +61,20 @@ export function ReportsList() {
         title="Storm reports"
         subtitle={`Preliminary reports from SPC · ${filters.reportDays === 1 ? "today" : `last ${filters.reportDays} days`}`}
         actions={
-          <Button onClick={() => setShowFilters(true)} variant="secondary">
-            Filters
+          <Button variant="ghost" onClick={reset} className="px-3 py-1">
+            Reset filters
           </Button>
         }
       />
 
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <CategoryChips scope="reports" />
+        <span className="mx-1 h-5 w-px bg-line" aria-hidden="true" />
+        <ReportDayChips scope="reports" />
+      </div>
       <div className="mb-4 flex flex-wrap items-center gap-2">
+        <MagnitudeChips scope="reports" />
+        <span className="mx-1 h-5 w-px bg-line" aria-hidden="true" />
         <Chip
           on={radius !== null}
           onClick={() => void cycleRadius()}
@@ -132,7 +140,6 @@ export function ReportsList() {
         </ul>
       )}
 
-      {showFilters && <FiltersPanel scope="reports" onClose={() => setShowFilters(false)} />}
       {selected && <ReportDetail report={selected} onClose={() => setSelected(null)} />}
     </>
   );
