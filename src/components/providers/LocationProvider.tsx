@@ -1,8 +1,16 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+} from "react";
 import type { LatLng } from "@/lib/types";
-import { useSecureContext } from "./useSecureContext";
 
 /**
  * The viewer's location, asked for only when they ask for something that
@@ -57,12 +65,18 @@ function sameFix(a: Fix | null, b: Fix): boolean {
 }
 
 export function LocationProvider({ children }: { children: ReactNode }) {
-  const secure = useSecureContext();
   const [fix, setFix] = useState<Fix | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const available = secure && typeof navigator !== "undefined" && "geolocation" in navigator;
+  // Read after hydration, like `useSecureContext`: the server has no
+  // geolocation (Node's `navigator` lacks it), so it says "available" rather
+  // than render a warning the browser then disagrees with.
+  const available = useSyncExternalStore(
+    () => () => {},
+    () => window.isSecureContext && "geolocation" in navigator,
+    () => true,
+  );
   const update = useCallback((next: Fix) => setFix((prev) => (sameFix(prev, next) ? prev : next)), []);
 
   const request = useCallback(async (): Promise<LatLng | null> => {
