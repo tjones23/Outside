@@ -7,7 +7,7 @@ import { useFilters } from "@/lib/client-store";
 import { formatDateTime } from "@/lib/format";
 import type { AlertLevel, StormAlert } from "@/lib/types";
 import { AlertDetail } from "./Details";
-import { AlertGroupChips, AlertKindChips, CategoryChips } from "./FilterChips";
+import { AlertGroupChips, AlertKindChips } from "./FilterChips";
 import { PageHeader } from "./PageHeader";
 import { useLocation } from "./providers/LocationProvider";
 import { useStormData } from "./providers/StormDataProvider";
@@ -67,9 +67,6 @@ export function AlertsList() {
         <AlertGroupChips scope="alerts" />
       </div>
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        {/* Tornado / wind / hail narrow the tornado and severe thunderstorm alerts. */}
-        <CategoryChips scope="alerts" />
-        <span className="mx-1 h-5 w-px bg-line" aria-hidden="true" />
         <AlertKindChips scope="alerts" />
         <span className="mx-1 h-5 w-px bg-line" aria-hidden="true" />
         {SORTS.map(({ mode, label }) => (
