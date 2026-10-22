@@ -13,7 +13,7 @@ import { useFilteredData } from "./providers/useFilteredData";
  */
 export function NearbyBanner({ onSelectAlert }: { onSelectAlert?: (id: string) => void }) {
   const { coord } = useLocation();
-  const { allAlerts, alerts, reports } = useFilteredData();
+  const { allAlerts, alerts, reports } = useFilteredData("map");
   if (!coord) return null;
 
   // Every warning, regardless of filters: being inside one always matters.

@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_FILTERS, normalizeFilters, passesAlert, passesReport, selectedOutlook } from "./filters";
+import {
+  DEFAULT_FILTERS,
+  normalizeFilters,
+  passesAlert,
+  passesReport,
+  selectedOutlook,
+  withinReportDays,
+} from "./filters";
 import { makeAlert, makeReport } from "./test-helpers";
 
 const f = (patch = {}) => ({ ...DEFAULT_FILTERS, ...patch });
@@ -29,6 +36,21 @@ describe("passesReport", () => {
     const tor = f({ minTornadoRating: 0 });
     expect(passesReport(tor, makeReport("tornado", here, { efRating: 0 }))).toBe(true);
     expect(passesReport(tor, makeReport("tornado", here))).toBe(false);
+  });
+});
+
+describe("withinReportDays", () => {
+  const days = ["2026-05-20", "2026-05-19", "2026-05-18"].map((date) => ({ date, ok: true, count: 1 }));
+  const reports = days.map((d) => makeReport("hail", here, { date: d.date }));
+
+  it("keeps the newest days asked for", () => {
+    expect(withinReportDays(reports, days, 1)).toEqual([reports[0]]);
+    expect(withinReportDays(reports, days, 2)).toEqual(reports.slice(0, 2));
+  });
+
+  it("keeps everything when the feed covers no more days than asked", () => {
+    expect(withinReportDays(reports, days, 3)).toBe(reports);
+    expect(withinReportDays(reports, days, 5)).toBe(reports);
   });
 });
 

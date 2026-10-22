@@ -57,7 +57,7 @@ const US: [[number, number], [number, number]] = [
 const TERRAIN_PITCH = 5;
 
 export default function StormMap({ active }: { active: boolean }) {
-  const { alerts, reports, damageAreas, filters } = useFilteredData();
+  const { alerts, reports, damageAreas, filters } = useFilteredData("map");
   const {
     outlook,
     radar,
@@ -272,7 +272,7 @@ export default function StormMap({ active }: { active: boolean }) {
         )}
       </div>
 
-      {showFilters && <FiltersPanel onClose={() => setShowFilters(false)} />}
+      {showFilters && <FiltersPanel scope="map" onClose={() => setShowFilters(false)} />}
       {selectedAlert && <AlertDetail alert={selectedAlert} onClose={() => setSelectedAlert(null)} />}
       {selectedReport && <ReportDetail report={selectedReport} onClose={() => setSelectedReport(null)} />}
       {selectedFire && (

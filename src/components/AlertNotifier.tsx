@@ -47,7 +47,7 @@ export function AlertNotifier() {
   const { alerts } = useStormData();
   const { settings } = useNotificationSettings();
   const { locations } = useSavedLocations();
-  const { filters } = useFilters();
+  const { filters } = useFilters("alerts");
 
   const data = alerts.data?.alerts;
   const updatedAt = alerts.updatedAt;

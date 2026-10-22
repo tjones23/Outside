@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useSyncExternalStore } from "react";
-import { DEFAULT_FILTERS, normalizeFilters, CATEGORY_KEY } from "./filters";
+import { DEFAULT_FILTERS, normalizeFilters, CATEGORY_KEY, type FilterScope } from "./filters";
 import { newId } from "./id";
 import { SKI_PASSES, type ResortSort, type SkiPass } from "./resorts";
 import { DEFAULT_THEME_PREFERENCE, parseThemePreference, THEME_STORAGE_KEY, type ThemePreference } from "./theme";
@@ -21,7 +21,12 @@ import type { AlertGroup, FilterSettings, NotificationSettings, SavedLocation, S
  */
 
 const PREFIX = "outside";
-const FILTERS_KEY = `${PREFIX}:filters:v1`;
+// The map keeps the key every page used to share, so its settings carry over.
+const FILTERS_KEYS: Record<FilterScope, string> = {
+  map: `${PREFIX}:filters:v1`,
+  reports: `${PREFIX}:filters:reports:v1`,
+  alerts: `${PREFIX}:filters:alerts:v1`,
+};
 const LOCATIONS_KEY = `${PREFIX}:locations:v1`;
 const NOTIFY_KEY = `${PREFIX}:notify:v1`;
 const PLACE_TAB_KEY = `${PREFIX}:place-tab:v1`;
@@ -114,38 +119,63 @@ export function useHydrated(): boolean {
 
 // --- Filters ---------------------------------------------------------------
 
-function readFilters(): FilterSettings {
-  return readSnapshot(FILTERS_KEY, normalizeFilters, DEFAULT_FILTERS);
+// The alerts page starts from the set every page used to share, so the hazards
+// chosen there survive the split. The reports page starts from the defaults:
+// the shared set's storm types were as often switched off for the map's sake.
+if (typeof window !== "undefined" && readRaw(FILTERS_KEYS.alerts) === null) {
+  const shared = readRaw(FILTERS_KEYS.map);
+  if (shared !== null) {
+    try {
+      window.localStorage.setItem(FILTERS_KEYS.alerts, shared);
+    } catch {
+      // Storage blocked; the alerts page falls back to the defaults.
+    }
+  }
 }
 
-export function useFilters() {
-  const filters = useStored(FILTERS_KEY, normalizeFilters, DEFAULT_FILTERS);
+function readFilters(key: string): FilterSettings {
+  return readSnapshot(key, normalizeFilters, DEFAULT_FILTERS);
+}
+
+/** One page's filters — see `FILTER_SCOPES`. */
+export function useFilters(scope: FilterScope) {
+  const key = FILTERS_KEYS[scope];
+  const filters = useStored(key, normalizeFilters, DEFAULT_FILTERS);
 
   // Read the latest stored value rather than closing over `filters`, so two
   // quick changes in one event can't overwrite each other.
-  const update = useCallback((patch: Partial<FilterSettings>) => {
-    persist(FILTERS_KEY, normalizeFilters({ ...readFilters(), ...patch }));
-  }, []);
+  const update = useCallback(
+    (patch: Partial<FilterSettings>) => {
+      persist(key, normalizeFilters({ ...readFilters(key), ...patch }));
+    },
+    [key],
+  );
 
-  const toggleCategory = useCallback((category: StormCategory) => {
-    const key = CATEGORY_KEY[category];
-    const current = readFilters();
-    persist(FILTERS_KEY, { ...current, [key]: !current[key] });
-  }, []);
+  const toggleCategory = useCallback(
+    (category: StormCategory) => {
+      const field = CATEGORY_KEY[category];
+      const current = readFilters(key);
+      persist(key, { ...current, [field]: !current[field] });
+    },
+    [key],
+  );
 
-  const toggleAlertGroup = useCallback((group: AlertGroup) => {
-    const current = readFilters();
-    const on = current.alertGroups.includes(group);
-    persist(
-      FILTERS_KEY,
-      normalizeFilters({
-        ...current,
-        alertGroups: on ? current.alertGroups.filter((g) => g !== group) : [...current.alertGroups, group],
-      }),
-    );
-  }, []);
+  const toggleAlertGroup = useCallback(
+    (group: AlertGroup) => {
+      const current = readFilters(key);
+      const on = current.alertGroups.includes(group);
+      persist(
+        key,
+        normalizeFilters({
+          ...current,
+          alertGroups: on ? current.alertGroups.filter((g) => g !== group) : [...current.alertGroups, group],
+        }),
+      );
+    },
+    [key],
+  );
 
-  const reset = useCallback(() => persist(FILTERS_KEY, DEFAULT_FILTERS), []);
+  const reset = useCallback(() => persist(key, DEFAULT_FILTERS), [key]);
 
   return { filters, update, toggleCategory, toggleAlertGroup, reset };
 }

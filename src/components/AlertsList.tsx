@@ -27,7 +27,7 @@ function count(alerts: StormAlert[], level: AlertLevel): string | null {
 
 /** Active NWS warnings, watches, advisories and statements. */
 export function AlertsList() {
-  const { alerts } = useFilteredData();
+  const { alerts } = useFilteredData("alerts");
   const { alerts: feed } = useStormData();
   const location = useLocation();
   const [sort, setSort] = useState<AlertSort>("recent");
@@ -60,10 +60,10 @@ export function AlertsList() {
       />
 
       <div className="mb-3">
-        <AlertGroupChips />
+        <AlertGroupChips scope="alerts" />
       </div>
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        <AlertKindChips />
+        <AlertKindChips scope="alerts" />
         <span className="mx-1 h-5 w-px bg-line" aria-hidden="true" />
         {SORTS.map(({ mode, label }) => (
           <Chip
@@ -117,7 +117,7 @@ export function AlertsList() {
         </ul>
       )}
 
-      {showFilters && <FiltersPanel onClose={() => setShowFilters(false)} />}
+      {showFilters && <FiltersPanel scope="alerts" onClose={() => setShowFilters(false)} />}
       {selected && <AlertDetail alert={selected} onClose={() => setSelected(null)} />}
     </>
   );

@@ -21,7 +21,7 @@ import { usePoll, type Feed } from "./usePoll";
  * The storm feeds, polled from the server's `/api/*` routes.
  *
  * Unfiltered on purpose: the server returns the same data to everyone so its
- * cache serves every browser, and each browser applies its own filters (see
+ * cache serves every browser, and each page applies its own filters (see
  * `useFilteredData`). Which feeds are polled does depend on settings — no
  * outlook requests while none is selected, no radar while radar is off, no
  * tropical, forecast, wildfire or air-quality requests while those are off.
@@ -49,11 +49,15 @@ interface StormData {
 const StormDataContext = createContext<StormData | null>(null);
 
 export function StormDataProvider({ children }: { children: ReactNode }) {
-  const { filters } = useFilters();
+  // The map's layers decide which feeds run; the map is always mounted.
+  const { filters } = useFilters("map");
+  const { filters: reportFilters } = useFilters("reports");
   const [refreshToken, setRefreshToken] = useState(0);
   const refresh = useCallback(() => setRefreshToken((n) => n + 1), []);
 
   const product = selectedOutlook(filters);
+  // Enough days for whichever page wants more; the other trims its copy.
+  const reportDays = Math.max(filters.reportDays, reportFilters.reportDays);
 
   // Alerts keep polling in a background tab: that's what lets a warning
   // notification arrive while you're looking at something else.
@@ -61,7 +65,7 @@ export function StormDataProvider({ children }: { children: ReactNode }) {
     whenHidden: true,
     refreshToken,
   });
-  const reports = usePoll<ReportsData>(`/api/reports?days=${filters.reportDays}`, 5 * MINUTE, {
+  const reports = usePoll<ReportsData>(`/api/reports?days=${reportDays}`, 5 * MINUTE, {
     whenHidden: false,
     keepPrevious: true,
     refreshToken,

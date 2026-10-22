@@ -3,13 +3,13 @@
 import { ALERT_GROUPS, alertGroupColor, alertGroupGlyph, alertGroupName } from "@/lib/alert-catalog";
 import { CATEGORIES, categoryColor, categoryGlyph, categoryName } from "@/lib/categories";
 import { useFilters } from "@/lib/client-store";
-import { isEnabled, isGroupEnabled } from "@/lib/filters";
+import { isEnabled, isGroupEnabled, type FilterScope } from "@/lib/filters";
 import type { FilterSettings } from "@/lib/types";
 import { Chip } from "./ui/controls";
 
 /** Tornado / Wind / Hail on-off chips (the mobile app's category bar). */
-export function CategoryChips() {
-  const { filters, toggleCategory } = useFilters();
+export function CategoryChips({ scope }: { scope: FilterScope }) {
+  const { filters, toggleCategory } = useFilters(scope);
   return (
     <div className="flex flex-wrap gap-2">
       {CATEGORIES.map((c) => (
@@ -30,8 +30,8 @@ const TIERS: { key: keyof FilterSettings & `show${string}`; label: string; color
 ];
 
 /** Warnings / Watches / Advisories / Statements on-off chips. */
-export function AlertKindChips() {
-  const { filters, update } = useFilters();
+export function AlertKindChips({ scope }: { scope: FilterScope }) {
+  const { filters, update } = useFilters(scope);
   return (
     <div className="flex flex-wrap gap-2">
       {TIERS.map((t) => (
@@ -44,8 +44,8 @@ export function AlertKindChips() {
 }
 
 /** The hazard families — severe, tropical, flood, coastal, heat… — on and off. */
-export function AlertGroupChips() {
-  const { filters, toggleAlertGroup } = useFilters();
+export function AlertGroupChips({ scope }: { scope: FilterScope }) {
+  const { filters, toggleAlertGroup } = useFilters(scope);
   return (
     <div className="flex flex-wrap gap-2">
       {ALERT_GROUPS.map((g) => (

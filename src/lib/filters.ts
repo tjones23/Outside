@@ -1,7 +1,15 @@
 import { ALERT_GROUPS } from "./alert-catalog";
 import { isForecastProduct } from "./forecast";
 import { clampDay, isOutlookKind, outlookProduct } from "./outlook";
-import type { AlertGroup, FilterSettings, OutlookProduct, StormAlert, StormCategory, StormReport } from "./types";
+import type {
+  AlertGroup,
+  FilterSettings,
+  OutlookProduct,
+  ReportsData,
+  StormAlert,
+  StormCategory,
+  StormReport,
+} from "./types";
 
 /**
  * What the map and lists show. Ported from `FilterSettings.cs`.
@@ -9,6 +17,14 @@ import type { AlertGroup, FilterSettings, OutlookProduct, StormAlert, StormCateg
  * Filters are per-browser and applied client-side, so the server's cached
  * feeds never depend on anyone's settings.
  */
+
+/**
+ * Each page keeps its own filters: turning hail off on the map leaves the
+ * reports list alone. All three hold a full `FilterSettings`; each page's
+ * panel only offers the parts that page uses.
+ */
+export const FILTER_SCOPES = ["map", "reports", "alerts"] as const;
+export type FilterScope = (typeof FILTER_SCOPES)[number];
 
 export const DEFAULT_FILTERS: FilterSettings = {
   showTornado: true,
@@ -162,6 +178,22 @@ export function passesReport(filters: FilterSettings, report: StormReport): bool
         (report.efRating !== null && report.efRating >= filters.minTornadoRating)
       );
   }
+}
+
+/**
+ * Reports from the newest `reportDays` convective days of `days`.
+ *
+ * The feed is polled for the most days any page wants, so a page asking for
+ * fewer trims it here rather than polling its own copy.
+ */
+export function withinReportDays(
+  reports: StormReport[],
+  days: ReportsData["days"],
+  reportDays: number,
+): StormReport[] {
+  if (days.length <= reportDays) return reports;
+  const dates = new Set(days.slice(0, reportDays).map((d) => d.date));
+  return reports.filter((r) => dates.has(r.date));
 }
 
 /** The outlook product to draw, day clamped to one the kind publishes. */
