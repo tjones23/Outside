@@ -95,7 +95,7 @@ export default function StormMap({ active }: { active: boolean }) {
   const forecastFrames = forecastData?.frames ?? NO_FRAMES;
   const imageryOn = radarFrames.length > 0 || forecastData !== null;
   const radarPlayback = useFramePlayback(radarFrames, "newest-first");
-  const forecastPlayback = useFramePlayback(forecastFrames, "oldest-first");
+  const forecastPlayback = useFramePlayback(forecastFrames, "oldest-first", { rateLimited: true });
   const outlookData = outlook.data;
   const outlookProduct = selectedOutlook(filters);
   const { update: updateFilters } = useFilters("map");
@@ -153,7 +153,6 @@ export default function StormMap({ active }: { active: boolean }) {
             <FrameLayer
               playback={radarPlayback}
               opacity={filters.radarOpacity}
-              order="newest-first"
               maxNativeZoom={PRECIP_TYPE_MAX_NATIVE_ZOOM}
               attribution={PRECIP_TYPE_ATTRIBUTION_HTML}
             />
@@ -162,7 +161,6 @@ export default function StormMap({ active }: { active: boolean }) {
             <FrameLayer
               playback={forecastPlayback}
               opacity={filters.radarOpacity}
-              order="oldest-first"
               maxNativeZoom={forecastProduct(forecastData.product).maxNativeZoom}
               attribution={forecastData.attribution}
             />
