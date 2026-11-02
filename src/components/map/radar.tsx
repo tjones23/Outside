@@ -27,16 +27,19 @@ export type { LoadOrder } from "@/lib/frame-window";
  * step crossfades into the next, and the loop holds on its last frame before
  * starting over, so the eye can follow storms from frame to frame.
  *
- * Frames are mounted one after another (see `lib/frame-window.ts`): the
- * starting frame shows immediately and the rest join the animation as their
- * tiles arrive, so the first view isn't a wall of tile requests.
+ * Frames are mounted one after another (see `lib/frame-window.ts`), so the
+ * first view isn't a wall of tile requests and the starting frame shows
+ * first. The loop only plays once every frame is mounted and has its tiles
+ * for the view: until then it holds the frame on screen, rather than
+ * flicking through frames that are still blank.
  *
  * What happens when the map moves depends on whose tiles they are. Radar is
  * drawn by this server and its tiles never change, so every frame stays
- * mounted and MapLibre fetches the new view for all of them — the loop keeps
- * playing where it was. Forecast tiles come from IEM's and NWS's servers,
- * which don't take kindly to a few dozen frames' worth at once, so a move
- * keeps only the frame on screen and loads the rest again from there.
+ * mounted and MapLibre fetches the new view for all of them; the loop holds
+ * where it was until they're in, then carries on. Forecast tiles come from
+ * IEM's and NWS's servers, which don't take kindly to a few dozen frames'
+ * worth at once, so a move keeps only the frame on screen and loads the rest
+ * again from there.
  */
 
 const STEP_MS = 400;
@@ -44,6 +47,8 @@ const STEP_MS = 400;
 const HOLD_MS = 1800;
 /** Each step's crossfade: most of a step, so motion reads as motion rather than jumps. */
 const FADE_MS = 250;
+/** The longest playback waits on tiles after a move before playing what it has. */
+const MAX_HOLD_MS = 10_000;
 /** Pause between one frame having its tiles and mounting the next. */
 const PRELOAD_GAP_MS = { own: 100, rateLimited: 700 };
 
@@ -63,6 +68,9 @@ export interface FramePlayback {
   view: number;
   /** True while frames are still being added. */
   loading: boolean;
+  /** Some mounted frame is still fetching tiles for this view. */
+  buffering: boolean;
+  setBuffering: (buffering: boolean) => void;
   setPlaying: (playing: boolean) => void;
   seek: (index: number) => void;
   /** Frame `edge` has its tiles: mount the next one. */
@@ -113,9 +121,12 @@ export function useFramePlayback(
   const { lo, hi, edge } = state.window;
   const index = Math.min(Math.max(state.index, lo), hi);
   const [playing, setPlaying] = useState(true);
+  const [buffering, setBuffering] = useState(false);
+  const loading = hi - lo + 1 < count;
 
   // A timeout per step rather than an interval, so the last frame can hold.
-  const looping = playing && hi > lo;
+  // Nothing steps until every frame is mounted and has its tiles.
+  const looping = playing && !loading && !buffering && hi > lo;
   useEffect(() => {
     if (!looping) return;
     const id = window.setTimeout(
@@ -164,7 +175,9 @@ export function useFramePlayback(
     index,
     playing,
     view: state.view,
-    loading: hi - lo + 1 < count,
+    loading,
+    buffering,
+    setBuffering,
     setPlaying,
     seek,
     loadNext,
@@ -245,7 +258,7 @@ export function FrameLayer({
   attribution: string;
 }) {
   const { map } = useGL();
-  const { frames, lo, hi, edge, index, view, rateLimited, loading, loadNext, viewChanged } = playback;
+  const { frames, lo, hi, edge, index, view, rateLimited, loading, loadNext, viewChanged, setBuffering } = playback;
 
   useEffect(() => {
     if (!rateLimited) return;
@@ -280,6 +293,43 @@ export function FrameLayer({
       window.clearTimeout(timer);
     };
   }, [map, edgeFrame, edge, loading, rateLimited, view, loadNext]);
+
+  // Whether every mounted frame has its tiles for the view, kept up to date
+  // as the map moves: a pan or zoom sets them all fetching again, and
+  // playback holds until they're in. (A tile that failed counts as in; one
+  // that never answers gives up the hold after `MAX_HOLD_MS`.)
+  const mounted = frames
+    .slice(lo, hi + 1)
+    .map(frameSource)
+    .join("\n");
+  useEffect(() => {
+    const ids = mounted.split("\n");
+    let since: number | null = null;
+    let timer: number | undefined;
+    const check = () => {
+      if (ids.every((id) => map.getSource(id) && map.isSourceLoaded(id))) {
+        since = null;
+        window.clearTimeout(timer);
+        setBuffering(false);
+        return;
+      }
+      if (since === null) {
+        since = Date.now();
+        timer = window.setTimeout(check, MAX_HOLD_MS);
+      }
+      setBuffering(Date.now() - since < MAX_HOLD_MS);
+    };
+    map.on("dataloading", check);
+    map.on("sourcedata", check);
+    map.on("idle", check);
+    check();
+    return () => {
+      map.off("dataloading", check);
+      map.off("sourcedata", check);
+      map.off("idle", check);
+      window.clearTimeout(timer);
+    };
+  }, [map, mounted, setBuffering]);
 
   return (
     <>
@@ -341,7 +391,11 @@ export function FrameTimeline({
         {frame ? (withDay ? formatDayClock(ms) : formatClock(ms)) : "—"}
         {now > 0 && ms > now && <span className="text-accent"> · forecast</span>}
         <span className="block text-[10px] text-muted-dim">
-          {playback.loading ? `Loading ${loaded}/${playback.frames.length}` : attribution}
+          {playback.loading
+            ? `Loading ${loaded}/${playback.frames.length}`
+            : playback.buffering
+              ? "Loading…"
+              : attribution}
         </span>
       </span>
     </div>
