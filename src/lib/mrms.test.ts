@@ -142,9 +142,9 @@ describe("mrmsFileUrl / recentFrameTimes", () => {
     );
   });
 
-  it("steps back from the last ten-minute mark, newest first", () => {
+  it("steps back from the last four-minute mark, newest first", () => {
     const times = recentFrameTimes(Date.UTC(2026, 9, 8, 1, 47, 52), 3);
-    expect(times.map((t) => new Date(t * 1000).toISOString().slice(11, 16))).toEqual(["01:40", "01:30", "01:20"]);
+    expect(times.map((t) => new Date(t * 1000).toISOString().slice(11, 16))).toEqual(["01:44", "01:40", "01:36"]);
   });
 });
 

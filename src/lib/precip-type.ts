@@ -12,10 +12,14 @@ import type { RadarFrame } from "./types";
 export const PRECIP_TYPE_ATTRIBUTION = "NOAA MRMS";
 export const PRECIP_TYPE_ATTRIBUTION_HTML = '<a href="https://www.nssl.noaa.gov/projects/mrms/">NOAA MRMS</a>';
 
-/** One frame every ten minutes. */
-export const PRECIP_TYPE_STEP_SECONDS = 600;
+/**
+ * One frame every four minutes. MRMS publishes every two, on even minutes,
+ * so this must be a multiple of 120 s; four keeps storms moving in small
+ * steps without doubling the drawing (and the map's memory) again.
+ */
+export const PRECIP_TYPE_STEP_SECONDS = 240;
 /** The loop: the last hour. */
-export const PRECIP_TYPE_FRAMES = 7;
+export const PRECIP_TYPE_FRAMES = 16;
 
 /**
  * Tiles are drawn for zooms 3–9. MRMS's ~1 km grid is about zoom 7's pixel

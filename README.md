@@ -38,7 +38,7 @@ Service and Nominatim, both of which ask for one. It defaults to this repo.
 | [SPC storm reports](https://www.spc.noaa.gov/climo/reports/) | Preliminary tornado, wind and hail reports, 1–5 days | 5 min (today), 30 min (past days) |
 | [SPC outlooks](https://www.spc.noaa.gov/products/outlook/) | Categorical (days 1–3), tornado/wind/hail probabilities (days 1–2) | 15 min |
 | [WPC excessive rainfall](https://www.wpc.ncep.noaa.gov/qpf/excessive_rainfall_outlook_ero.php) | Flash-flood risk, days 1–5 | 15 min |
-| [NOAA MRMS](https://www.nssl.noaa.gov/projects/mrms/) (`mrms.ncep.noaa.gov`) | Radar, last hour, colored rain or snow; drawn into tiles by this server | 10 min, while radar is on |
+| [NOAA MRMS](https://www.nssl.noaa.gov/projects/mrms/) (`mrms.ncep.noaa.gov`) | Radar, last hour, colored rain or snow; drawn into tiles by this server | 4 min, while radar is on |
 | [Iowa Environmental Mesonet](https://mesonet.agron.iastate.edu/) | HRRR simulated radar, hourly to 18 h, as tiles | 10 min |
 | [NDFD WMS](https://digital.weather.gov/) | NWS 7-day gridded forecast: temperature, feels-like, gusts, rain, rain chance, cloud, snow; tiles come through this server (`/api/ndfd`), since the WMS sends no CORS headers | 10 min |
 | [NWS API](https://www.weather.gov/documentation/services-web-api) `points` + `gridpoints` | A saved place's 7-day forecast: day/night periods, new snow and precipitation per day | 15 min (grid cell lookup: 7 days), on opening a place |
@@ -209,7 +209,7 @@ from the terminal — works exactly as described in WhatsGood's README.
 ## Known limitations
 
 - **Radar covers the continental US only**, and is drawn by this server:
-  tiles through zoom 9 (stretched beyond), the last hour at ten-minute steps.
+  tiles through zoom 9 (stretched beyond), the last hour at four-minute steps.
   MRMS tells rain from snow but has no sleet or freezing-rain class. The first
   view after a quiet spell waits a few seconds while frames are drawn.
 - **Zone-based alerts are outlined from a second NWS service.** If that

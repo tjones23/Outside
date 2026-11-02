@@ -106,8 +106,8 @@ Known facts about the upstreams, all already handled in the code:
 
 - **Radar (NOAA MRMS):** this server draws it. While someone has radar on,
   `/api/mrms` fetches the last hour from `mrms.ncep.noaa.gov` (about 1.2 MB a
-  frame, every ten minutes) and writes tiles through zoom 9 to `.outside/mrms/`
-  (tens of MB, pruned as frames age out). Nothing runs while nobody is looking,
+  frame, every four minutes) and writes tiles through zoom 9 to `.outside/mrms/`
+  (about 140 MB, pruned as frames age out). Nothing runs while nobody is looking,
   and there is no extra process or job to start. It covers the continental US only.
 - **Basemap:** the map draws OpenFreeMap's vector tiles (OpenStreetMap data) and
   the Terrain Tiles on AWS with MapLibre GL, all keyless. MapLibre's tile worker is

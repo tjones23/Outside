@@ -2,106 +2,132 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { formatClock, formatDayClock } from "@/lib/format";
+import {
+  carryOver,
+  grow,
+  restartFrom,
+  single,
+  startOf,
+  step,
+  type FrameWindow,
+  type LoadOrder,
+} from "@/lib/frame-window";
 import { OVERLAY_PREFIX, slotEnd } from "@/lib/map-style";
 import type { RadarFrame } from "@/lib/types";
 import { useNow } from "../providers/useNow";
 import { useGL } from "./gl";
 
+export type { LoadOrder } from "@/lib/frame-window";
+
 /**
  * Animated map imagery: composite radar, and forecast animations.
  *
  * Each frame is its own raster source and layer, and only the current one is
- * opaque, so stepping through the loop toggles opacity — no re-fetch, no
- * flicker.
+ * opaque, so stepping through the loop changes opacity — no re-fetch. Each
+ * step crossfades into the next, and the loop holds on its last frame before
+ * starting over, so the eye can follow storms from frame to frame.
  *
- * RainViewer's free tier allows 500 tile requests a minute per IP (300 in a
- * burst), and one continental view is ~25 tiles per frame. Mounting every
- * frame at once blows through that on the first pan. So the loop is the last
- * hour only, and frames are loaded one after another, newest first: the
- * latest shows immediately, older ones join the animation as they arrive,
- * and moving the map starts the sequence again for the new view.
+ * Frames are mounted one after another (see `lib/frame-window.ts`): the
+ * starting frame shows immediately and the rest join the animation as their
+ * tiles arrive, so the first view isn't a wall of tile requests.
  *
- * Forecast animations reuse the same machinery in the other direction: the
- * frame nearest now first, later ones joining as they load — which is also
- * what keeps a few dozen frames from the forecast servers arriving at once.
+ * What happens when the map moves depends on whose tiles they are. Radar is
+ * drawn by this server and its tiles never change, so every frame stays
+ * mounted and MapLibre fetches the new view for all of them — the loop keeps
+ * playing where it was. Forecast tiles come from IEM's and NWS's servers,
+ * which don't take kindly to a few dozen frames' worth at once, so a move
+ * keeps only the frame on screen and loads the rest again from there.
  */
 
-const STEP_MS = 600;
-/** Last hour, at RainViewer's ten-minute cadence. */
-export const RADAR_LOOP_FRAMES = 7;
-/** Pause between finishing one frame and starting the next. */
-const PRELOAD_GAP_MS = 700;
-
-/**
- * Which end of the loop loads first. Radar starts from the newest frame and
- * reaches back into the past; a forecast starts from the frame nearest now
- * and reaches forward.
- */
-export type LoadOrder = "newest-first" | "oldest-first";
+const STEP_MS = 400;
+/** How long the last frame stays up before the loop starts over. */
+const HOLD_MS = 1800;
+/** Each step's crossfade: most of a step, so motion reads as motion rather than jumps. */
+const FADE_MS = 250;
+/** Pause between one frame having its tiles and mounting the next. */
+const PRELOAD_GAP_MS = { own: 100, rateLimited: 700 };
 
 export interface FramePlayback {
   frames: RadarFrame[];
-  /** The loaded frames for the current view are `lo` through `hi`, inclusive. */
+  order: LoadOrder;
+  /** Tiles come from someone else's servers: moving the map loads frames again, one at a time. */
+  rateLimited: boolean;
+  /** The mounted frames are `lo` through `hi`, inclusive. */
   lo: number;
   hi: number;
+  /** The frame mounted most recently. */
+  edge: number;
   index: number;
   playing: boolean;
-  /** Counts pans and zooms, so the preloader restarts even when `lo`/`hi` don't change. */
+  /** Counts the moves that restarted loading, so the preloader restarts even when the window doesn't change. */
   view: number;
-  /** True while frames are still being added for this view. */
+  /** True while frames are still being added. */
   loading: boolean;
   setPlaying: (playing: boolean) => void;
   seek: (index: number) => void;
-  /** The last frame loaded so far has its tiles, with `ready` loaded in all: mount the next one. */
-  loadNext: (ready: number) => void;
+  /** Frame `edge` has its tiles: mount the next one. */
+  loadNext: (edge: number) => void;
   viewChanged: () => void;
 }
 
 interface PlaybackState {
-  frames: RadarFrame[] | null;
-  /** How many frames, counting from the starting end, are mounted. */
-  ready: number;
+  frames: RadarFrame[];
+  window: FrameWindow;
   index: number;
   view: number;
 }
 
+const times = (frames: readonly RadarFrame[]) => frames.map((f) => f.time);
+
 /**
  * Playback over `frames`, which must keep its identity until the frames
- * actually change (memoize it): a new array starts over with one frame loaded.
+ * actually change (memoize it). A new list keeps playing at the same time:
+ * radar keeps the frames it had mounted, a rate-limited loop starts loading
+ * again from the frame on screen.
  */
-export function useFramePlayback(frames: RadarFrame[], order: LoadOrder): FramePlayback {
+export function useFramePlayback(
+  frames: RadarFrame[],
+  order: LoadOrder,
+  { rateLimited = false }: { rateLimited?: boolean } = {},
+): FramePlayback {
   const count = frames.length;
-  const last = Math.max(0, count - 1);
-  const start = order === "newest-first" ? last : 0;
 
-  // All playback state belongs to one frame list; a new one starts over with
-  // only its starting frame loaded, showing it.
-  const [stored, setState] = useState<PlaybackState>({ frames: null, ready: 1, index: 0, view: 0 });
+  const [stored, setState] = useState<PlaybackState | null>(null);
   const current = useCallback(
-    (s: PlaybackState): PlaybackState => (s.frames === frames ? s : { frames, ready: 1, index: start, view: s.view }),
-    [frames, start],
+    (s: PlaybackState | null): PlaybackState => {
+      if (s?.frames === frames) return s;
+      let moved: { window: FrameWindow; index: number };
+      if (!s) {
+        const start = startOf(count, order);
+        moved = { window: single(start), index: start };
+      } else if (rateLimited) {
+        moved = restartFrom(times(s.frames), s.index, times(frames), order);
+      } else {
+        moved = carryOver(times(s.frames), s.window, s.index, times(frames), order);
+      }
+      return { frames, ...moved, view: s?.view ?? 0 };
+    },
+    [frames, count, order, rateLimited],
   );
   const state = current(stored);
-  const range = useCallback(
-    (ready: number): [number, number] =>
-      order === "newest-first" ? [Math.max(0, count - ready), last] : [0, Math.min(last, ready - 1)],
-    [order, count, last],
-  );
-  const [lo, hi] = range(state.ready);
+  const { lo, hi, edge } = state.window;
+  const index = Math.min(Math.max(state.index, lo), hi);
   const [playing, setPlaying] = useState(true);
 
-  const looping = playing && hi - lo >= 1;
+  // A timeout per step rather than an interval, so the last frame can hold.
+  const looping = playing && hi > lo;
   useEffect(() => {
     if (!looping) return;
-    const id = window.setInterval(() => {
-      setState((prev) => {
-        const s = current(prev);
-        const [a, b] = range(s.ready);
-        return { ...s, index: s.index >= b ? a : Math.max(a, s.index + 1) };
-      });
-    }, STEP_MS);
-    return () => window.clearInterval(id);
-  }, [looping, current, range]);
+    const id = window.setTimeout(
+      () =>
+        setState((prev) => {
+          const s = current(prev);
+          return { ...s, index: step(s.index, s.window) };
+        }),
+      index >= hi ? HOLD_MS : STEP_MS,
+    );
+    return () => window.clearTimeout(id);
+  }, [looping, index, hi, current]);
 
   const seek = useCallback(
     (i: number) => {
@@ -111,23 +137,31 @@ export function useFramePlayback(frames: RadarFrame[], order: LoadOrder): FrameP
     [current],
   );
   const loadNext = useCallback(
-    (ready: number) =>
+    (from: number) =>
       setState((prev) => {
         const s = current(prev);
-        return s.ready === ready && s.ready < count ? { ...s, ready: ready + 1 } : s;
+        const w = s.window.edge === from ? grow(s.window, count, order) : null;
+        return w ? { ...s, window: w } : s;
       }),
-    [current, count],
+    [current, count, order],
   );
   const viewChanged = useCallback(
-    () => setState((prev) => ({ ...current(prev), ready: 1, index: start, view: prev.view + 1 })),
-    [current, start],
+    () =>
+      setState((prev) => {
+        const s = current(prev);
+        return { ...s, window: single(s.index), view: s.view + 1 };
+      }),
+    [current],
   );
 
   return {
     frames,
+    order,
+    rateLimited,
     lo,
     hi,
-    index: Math.min(Math.max(state.index, lo), hi),
+    edge,
+    index,
     playing,
     view: state.view,
     loading: hi - lo + 1 < count,
@@ -150,7 +184,7 @@ function Frame({
   frame: RadarFrame;
   opacity: number;
   maxNativeZoom: number;
-  attribution?: string;
+  attribution: string;
 }) {
   const { map } = useGL();
   const id = frameSource(frame);
@@ -164,6 +198,8 @@ function Frame({
       // Past the source's native zoom MapLibre stretches its tiles instead
       // of requesting ones that don't exist (or are placeholders).
       maxzoom: maxNativeZoom,
+      // On every frame, so it doesn't move (and remount a frame) as the
+      // loop's ends change; MapLibre lists each attribution once.
       attribution,
     });
     map.addLayer(
@@ -171,7 +207,11 @@ function Frame({
         id,
         type: "raster",
         source: id,
-        paint: { "raster-opacity": 0, "raster-fade-duration": 0, "raster-opacity-transition": { duration: 0 } },
+        paint: {
+          "raster-opacity": 0,
+          "raster-fade-duration": 0,
+          "raster-opacity-transition": { duration: FADE_MS, delay: 0 },
+        },
       },
       slotEnd("imagery"),
     );
@@ -195,42 +235,41 @@ function Frame({
 export function FrameLayer({
   playback,
   opacity,
-  order,
   maxNativeZoom,
   attribution,
 }: {
   playback: FramePlayback;
   opacity: number;
-  order: LoadOrder;
   maxNativeZoom: number;
-  /** Attribution HTML, put on one frame only. */
+  /** Attribution HTML. */
   attribution: string;
 }) {
   const { map } = useGL();
-  const { frames, lo, hi, index, view, loadNext, viewChanged } = playback;
+  const { frames, lo, hi, edge, index, view, rateLimited, loading, loadNext, viewChanged } = playback;
 
   useEffect(() => {
+    if (!rateLimited) return;
     map.on("moveend", viewChanged);
     return () => {
       map.off("moveend", viewChanged);
     };
-  }, [map, viewChanged]);
+  }, [map, rateLimited, viewChanged]);
 
-  const edge = frames[order === "newest-first" ? lo : hi];
-  const ready = hi - lo + 1;
+  const edgeFrame = frames[edge];
 
   // Once the most recently mounted frame has its tiles, queue the next one.
   // MapLibre reports a source's progress as `sourcedata` events; a view that
   // needed no tiles, or whose tiles landed before this ran, is loaded already.
   useEffect(() => {
-    if (!edge || ready >= frames.length) return;
-    const id = frameSource(edge);
+    if (!edgeFrame || !loading) return;
+    const id = frameSource(edgeFrame);
+    const gap = rateLimited ? PRELOAD_GAP_MS.rateLimited : PRELOAD_GAP_MS.own;
     let timer: number | undefined;
     let queued = false;
     const check = () => {
       if (queued || !map.getSource(id) || !map.isSourceLoaded(id)) return;
       queued = true;
-      timer = window.setTimeout(() => loadNext(ready), PRELOAD_GAP_MS);
+      timer = window.setTimeout(() => loadNext(edge), gap);
     };
     map.on("sourcedata", check);
     map.on("idle", check);
@@ -240,9 +279,7 @@ export function FrameLayer({
       map.off("idle", check);
       window.clearTimeout(timer);
     };
-  }, [map, edge, ready, frames.length, view, loadNext]);
-
-  const attributionAt = order === "newest-first" ? frames.length - 1 : 0;
+  }, [map, edgeFrame, edge, loading, rateLimited, view, loadNext]);
 
   return (
     <>
@@ -253,7 +290,7 @@ export function FrameLayer({
             frame={frame}
             opacity={i === index ? opacity : 0}
             maxNativeZoom={maxNativeZoom}
-            attribution={i === attributionAt ? attribution : undefined}
+            attribution={attribution}
           />
         ),
       )}
