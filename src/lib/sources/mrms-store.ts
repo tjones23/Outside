@@ -48,7 +48,9 @@ import { fetchMrmsFile } from "./upstream";
  * and API calls keep being answered while it works.
  */
 
-const DATA_ROOT = join(process.cwd(), ".outside", "mrms");
+// Runtime data, not part of the app: without the ignore, the build traces
+// every frame on disk — tens of thousands of tiles, and minutes of build time.
+const DATA_ROOT = join(/* turbopackIgnore: true */ process.cwd(), ".outside", "mrms");
 /** Frames drawn by this version of the renderer; anything else under DATA_ROOT is stale. */
 const DATA_DIR = join(DATA_ROOT, `v${PRECIP_TYPE_RENDER_VERSION}`);
 /** How often a refresh may go back to NCEP; polls in between just read the disk. */
