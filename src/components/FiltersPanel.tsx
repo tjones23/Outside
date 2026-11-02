@@ -3,7 +3,7 @@
 import { useFilters } from "@/lib/client-store";
 import { HAIL_MAX, HAIL_STEP, REPORT_DAY_OPTIONS, WIND_MAX, WIND_MIN } from "@/lib/filters";
 import { FORECAST_PRODUCTS } from "@/lib/forecast";
-import { availableDays, clampDay, OUTLOOK_KINDS, outlookKindChip } from "@/lib/outlook";
+import { clampDay, OUTLOOK_KINDS, outlookKindChip } from "@/lib/outlook";
 import type { ForecastProductId, OutlookKind } from "@/lib/types";
 import { AlertGroupChips, AlertKindChips, CategoryChips } from "./FilterChips";
 import { Sheet } from "./ui/Sheet";
@@ -107,17 +107,8 @@ export function FiltersPanel({ onClose }: { onClose: () => void }) {
       </div>
       <p className="mt-1.5 text-xs text-muted-dim">
         Storm Prediction Center convective risk, or the Weather Prediction Center&apos;s excessive rainfall (flash
-        flood) risk.
+        flood) risk. Pick the day from the outlook&apos;s legend on the map.
       </p>
-      {f.outlookKind && (
-        <div className="mt-2 flex flex-wrap gap-2">
-          {availableDays(f.outlookKind).map((d) => (
-            <Chip key={d} on={f.outlookDay === d} onClick={() => update({ outlookDay: d })}>
-              Day {d}
-            </Chip>
-          ))}
-        </div>
-      )}
 
       <SectionTitle>Tropical</SectionTitle>
       <Switch

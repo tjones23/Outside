@@ -4,6 +4,8 @@ import { AttributionControl, getVersion, Map as GLMap, NavigationControl, setWor
 import "maplibre-gl/dist/maplibre-gl.css";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { alertContains, byPriority } from "@/lib/alerts";
+import { useFilters } from "@/lib/client-store";
+import { selectedOutlook } from "@/lib/filters";
 import { forecastProduct } from "@/lib/forecast";
 import { US_BOUNDS } from "@/lib/geo";
 import { buildStyle, keepOverlays, type StyleOptions } from "@/lib/map-style";
@@ -95,6 +97,9 @@ export default function StormMap({ active }: { active: boolean }) {
   const radarPlayback = useFramePlayback(radarFrames, "newest-first");
   const forecastPlayback = useFramePlayback(forecastFrames, "oldest-first");
   const outlookData = outlook.data;
+  const outlookProduct = selectedOutlook(filters);
+  const { update: updateFilters } = useFilters("map");
+  const selectOutlookDay = useCallback((day: number) => updateFilters({ outlookDay: day }), [updateFilters]);
   const tropicalData = filters.showTropical ? tropical.data : null;
   const fireData = filters.showFires ? fires.data : null;
   const hotspotData = filters.showHotspots ? (hotspots.data?.hotspots ?? null) : null;
@@ -240,9 +245,9 @@ export default function StormMap({ active }: { active: boolean }) {
             <AirQualityLegend hour={airData?.hour ?? null} />
           </div>
         )}
-        {outlookData && outlookData.features.length > 0 && (
+        {outlookProduct && (
           <div className="pointer-events-auto">
-            <OutlookLegend data={outlookData} theme={theme} />
+            <OutlookLegend product={outlookProduct} data={outlookData} theme={theme} onSelectDay={selectOutlookDay} />
           </div>
         )}
         {radarFrames.length > 0 && (

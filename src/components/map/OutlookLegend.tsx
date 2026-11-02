@@ -1,15 +1,31 @@
 "use client";
 
 import { useState } from "react";
-import { featureColors } from "@/lib/outlook";
+import { availableDays, featureColors } from "@/lib/outlook";
 import type { Theme } from "@/lib/theme";
-import type { OutlookData } from "@/lib/types";
+import type { OutlookData, OutlookProduct } from "@/lib/types";
 
-/** Distinct outlook areas in the order SPC lists them (lowest risk first). */
-export function OutlookLegend({ data, theme }: { data: OutlookData; theme: Theme }) {
+/**
+ * The active outlook: a day picker, then its distinct risk areas in the
+ * order the center lists them (lowest risk first).
+ *
+ * `data` is null while the picked day loads, so the picker stays put rather
+ * than vanishing between days.
+ */
+export function OutlookLegend({
+  product,
+  data,
+  theme,
+  onSelectDay,
+}: {
+  product: OutlookProduct;
+  data: OutlookData | null;
+  theme: Theme;
+  onSelectDay: (day: number) => void;
+}) {
   const [open, setOpen] = useState(true);
   const seen = new Set<string>();
-  const items = data.features.filter((f) => {
+  const items = (data?.features ?? []).filter((f) => {
     const key = f.label + f.detail;
     if (!f.label || seen.has(key)) return false;
     seen.add(key);
@@ -24,33 +40,56 @@ export function OutlookLegend({ data, theme }: { data: OutlookData; theme: Theme
         aria-expanded={open}
         className="flex w-full items-center gap-2 font-medium text-text"
       >
-        {data.product.center} {data.product.title}
+        {product.center} {product.title}
         <span className="ml-auto text-muted-dim">{open ? "▾" : "▸"}</span>
       </button>
       {open && (
-        <ul className="mt-1.5 space-y-1">
-          {items.slice(0, 8).map((f) => {
-            const { fill, stroke } = featureColors(f, theme);
-            return (
-              <li key={f.label + f.detail} className="flex items-center gap-2 text-muted">
-                <span
-                  aria-hidden="true"
-                  className="h-3 w-3 shrink-0 rounded-sm border"
-                  style={
-                    f.isHatched
-                      ? {
-                          borderColor: stroke,
-                          backgroundImage: `repeating-linear-gradient(45deg, ${stroke} 0 1px, transparent 1px 4px)`,
-                        }
-                      : { background: fill, borderColor: stroke }
-                  }
-                />
-                {f.detail || f.label}
-              </li>
-            );
-          })}
-          {items.length === 0 && <li className="text-muted-dim">No risk areas</li>}
-        </ul>
+        <>
+          <div role="group" aria-label="Outlook day" className="mt-1.5 flex flex-wrap gap-1">
+            {availableDays(product.kind).map((d) => {
+              const on = d === product.day;
+              return (
+                <button
+                  key={d}
+                  type="button"
+                  aria-pressed={on}
+                  onClick={() => onSelectDay(d)}
+                  className={`rounded-full border px-2 py-0.5 transition-colors ${
+                    on
+                      ? "border-accent/70 bg-accent/15 text-text"
+                      : "border-line bg-surface text-muted hover:border-muted-dim hover:text-text"
+                  }`}
+                >
+                  Day {d}
+                </button>
+              );
+            })}
+          </div>
+          <ul className="mt-1.5 space-y-1">
+            {items.slice(0, 8).map((f) => {
+              const { fill, stroke } = featureColors(f, theme);
+              return (
+                <li key={f.label + f.detail} className="flex items-center gap-2 text-muted">
+                  <span
+                    aria-hidden="true"
+                    className="h-3 w-3 shrink-0 rounded-sm border"
+                    style={
+                      f.isHatched
+                        ? {
+                            borderColor: stroke,
+                            backgroundImage: `repeating-linear-gradient(45deg, ${stroke} 0 1px, transparent 1px 4px)`,
+                          }
+                        : { background: fill, borderColor: stroke }
+                    }
+                  />
+                  {f.detail || f.label}
+                </li>
+              );
+            })}
+            {data && items.length === 0 && <li className="text-muted-dim">No risk areas</li>}
+            {!data && <li className="text-muted-dim">Loading…</li>}
+          </ul>
+        </>
       )}
     </div>
   );
