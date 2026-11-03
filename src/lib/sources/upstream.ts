@@ -23,6 +23,7 @@ import {
 } from "../forecast";
 import { nominatimUrl, parseNominatim } from "../geocode";
 import { mrmsFileUrl, type MrmsProduct } from "../mrms";
+import { windFileUrl, windRunCheckUrl } from "../wind";
 import { BLEND_MODELS, modelUrl, parseModelRun, PAST_MODEL_KEYS, pastModelUrl, type BlendModel, type ModelRun } from "../openmeteo";
 import { buildOutlook } from "../outlook";
 import {
@@ -91,6 +92,7 @@ import type {
   TropicalStorm,
   WildfireIncident,
   WildfirePerimeter,
+  WindModelId,
 } from "../types";
 import {
   ARCGIS_PAGE_SIZE,
@@ -441,6 +443,33 @@ export async function fetchMrmsFile(product: MrmsProduct, time: number): Promise
     return new Uint8Array(await response.arrayBuffer());
   } catch (error) {
     if (error instanceof UpstreamError && error.status === 404) return null;
+    throw error;
+  }
+}
+
+/** NOMADS answers 404 for a file not there yet, and 403 for a run directory not there yet. */
+const isMissing = (error: unknown) => error instanceof UpstreamError && (error.status === 404 || error.status === 403);
+
+/** True once NCEP has published all of a model run's files. */
+export async function fetchWindRunPublished(model: WindModelId, run: number): Promise<boolean> {
+  try {
+    const response = await get(windRunCheckUrl(model, run), "text/plain, */*");
+    await response.arrayBuffer();
+    return true;
+  } catch (error) {
+    if (isMissing(error)) return false;
+    throw error;
+  }
+}
+
+/** One forecast hour's 10 m winds as GRIB2, or null if NOMADS doesn't have it. */
+export async function fetchWindFile(model: WindModelId, run: number, hour: number): Promise<Uint8Array | null> {
+  try {
+    // The filter cuts the file on request: a few seconds for HRRR's full grid.
+    const response = await get(windFileUrl(model, run, hour), "application/octet-stream, */*", 60_000);
+    return new Uint8Array(await response.arrayBuffer());
+  } catch (error) {
+    if (isMissing(error)) return null;
     throw error;
   }
 }

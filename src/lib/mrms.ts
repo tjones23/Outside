@@ -535,12 +535,21 @@ const PNG_SIGNATURE = Uint8Array.from([137, 80, 78, 71, 13, 10, 26, 10]);
 
 /** A palette PNG from deflated `scanlines`. */
 export function indexedPng(width: number, height: number, deflated: Uint8Array): Uint8Array {
+  return pngFile(width, height, 3, PALETTE_CHUNKS, deflated);
+}
+
+/** An 8-bit RGB PNG from deflated rows of three bytes a pixel, each row led by a 0 filter byte. */
+export function rgbPng(width: number, height: number, deflated: Uint8Array): Uint8Array {
+  return pngFile(width, height, 2, [], deflated);
+}
+
+function pngFile(width: number, height: number, colorType: number, extra: Uint8Array[], deflated: Uint8Array): Uint8Array {
   const ihdr = new Uint8Array(13);
   view(ihdr).setUint32(0, width);
   view(ihdr).setUint32(4, height);
-  ihdr[8] = 8; // bits per index
-  ihdr[9] = 3; // palette
-  const parts = [PNG_SIGNATURE, chunk("IHDR", ihdr), ...PALETTE_CHUNKS, chunk("IDAT", deflated), chunk("IEND", new Uint8Array(0))];
+  ihdr[8] = 8; // bits per sample (or index)
+  ihdr[9] = colorType;
+  const parts = [PNG_SIGNATURE, chunk("IHDR", ihdr), ...extra, chunk("IDAT", deflated), chunk("IEND", new Uint8Array(0))];
   const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
   let at = 0;
   for (const p of parts) {

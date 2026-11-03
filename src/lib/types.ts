@@ -489,6 +489,35 @@ export interface ForecastFrames {
   attribution: string;
 }
 
+// --- Wind -----------------------------------------------------------------------
+
+export type WindModelId = "gfs" | "hrrr";
+
+/** One forecast hour of 10 m wind, as an RGB image (see `wind.ts` for the encoding). */
+export interface WindFrame {
+  /** Valid time, Unix seconds. */
+  time: number;
+  /** The run it came from, Unix seconds. */
+  run: number;
+  url: string;
+  /** m/s at byte 0 and byte 255 of the image's R (U, eastward) and G (V, northward). */
+  uMin: number;
+  uMax: number;
+  vMin: number;
+  vMax: number;
+}
+
+export interface WindManifest {
+  model: WindModelId;
+  /** Oldest first, from the frame just past onward. */
+  frames: WindFrame[];
+  /** Every frame's grid: pixel centers of the north-west corner, spacing in degrees, size. */
+  grid: { west: number; north: number; step: number; width: number; height: number };
+  /** Frames are still being drawn: poll again soon. */
+  pending: boolean;
+  attribution: string;
+}
+
 // --- Wildfire -----------------------------------------------------------------
 
 /** A wildfire that isn't out yet, from NIFC's interagency record (WFIGS). */

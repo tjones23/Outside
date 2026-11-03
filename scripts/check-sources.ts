@@ -29,6 +29,8 @@ import {
   fetchReportDay,
   fetchSmoke,
   fetchTropical,
+  fetchWindFile,
+  fetchWindRunPublished,
   fetchWwaOutlines,
   userAgent,
 } from "../src/lib/sources/upstream";
@@ -37,6 +39,7 @@ import { outlookProduct } from "../src/lib/outlook";
 import { HOTSPOT_MAX_HOURS } from "../src/lib/wildfire";
 import { convectiveDate } from "../src/lib/reports";
 import { parseGrib2, recentFrameTimes, type MrmsProduct } from "../src/lib/mrms";
+import { framesToDraw, parseWindGrib, recentRuns, WIND_MODELS } from "../src/lib/wind";
 
 try {
   process.loadEnvFile(".env.local");
@@ -207,6 +210,22 @@ async function main(): Promise<void> {
         return `${grid.ni}×${grid.nj} grid, ${age} min old, ${Math.round(file.length / 1024)} KB`;
       }
       throw new Error("none of the last three frames is published");
+    });
+  }
+
+  for (const model of WIND_MODELS) {
+    await check(`NOAA ${model.name} 10 m wind`, async () => {
+      // The newest finished run, and the first of its frames the map would draw.
+      for (const run of recentRuns(model, Date.now(), 3)) {
+        if (!(await fetchWindRunPublished(model.id, run))) continue;
+        const { hour } = framesToDraw(model, run, Date.now())[0];
+        const file = await fetchWindFile(model.id, run, hour);
+        if (!file) throw new Error(`run ${new Date(run * 1000).toISOString().slice(11, 13)}Z has no f${hour}`);
+        const { grid } = parseWindGrib(file);
+        const age = Math.round((Date.now() / 1000 - run) / 3600);
+        return `run ${age} h old, f${hour} ${grid.ni}×${grid.nj} ${grid.kind}, ${Math.round(file.length / 1024)} KB`;
+      }
+      throw new Error("none of the last three runs is published");
     });
   }
 

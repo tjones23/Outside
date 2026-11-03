@@ -40,6 +40,7 @@ Service and Nominatim, both of which ask for one. It defaults to this repo.
 | [WPC excessive rainfall](https://www.wpc.ncep.noaa.gov/qpf/excessive_rainfall_outlook_ero.php) | Flash-flood risk, days 1–5 | 15 min |
 | [NOAA MRMS](https://www.nssl.noaa.gov/projects/mrms/) (`mrms.ncep.noaa.gov`) | Radar, last hour, colored rain or snow; drawn into tiles by this server | 4 min, while radar is on |
 | [Iowa Environmental Mesonet](https://mesonet.agron.iastate.edu/) | HRRR simulated radar, hourly to 18 h, as tiles | 10 min |
+| [NOAA NOMADS](https://nomads.ncep.noaa.gov/) grib filter | 10 m wind (U, V) from GFS (every 3 h to 5 days) and HRRR (hourly to 18 h, every third run), drawn by this server into u/v images for an animated wind layer at `/api/wind` — not on the map yet | new run checked every 10 min, while wind is polled |
 | [NDFD WMS](https://digital.weather.gov/) | NWS 7-day gridded forecast: temperature, feels-like, gusts, rain, rain chance, cloud, snow; tiles come through this server (`/api/ndfd`), since the WMS sends no CORS headers | 10 min |
 | [NWS API](https://www.weather.gov/documentation/services-web-api) `points` + `gridpoints` | A saved place's 7-day forecast: day/night periods, new snow and precipitation per day | 15 min (grid cell lookup: 7 days), on opening a place |
 | [Open-Meteo](https://open-meteo.com/) forecast + ensemble APIs | A saved place's 15-day snow blend: HRRR, HRDPS, NBM, ECMWF IFS, GFS, ICON, GDPS, ECMWF AIFS, AIGFS; GEFS and AIFS ensembles. Free for non-commercial use, CC BY 4.0 | 1 h (HRRR, HRDPS, NBM), 3 h (global), 6 h (ensembles), on opening a place |
@@ -103,6 +104,7 @@ src/lib/               pure, framework-free, unit-tested
   outlook.ts           SPC / WPC outlook GeoJSON → features + hatch lines
   mrms.ts              MRMS GRIB2 (PNG-packed) → rain/snow radar tiles
   precip-type.ts       radar frame URLs, zooms and colors, for the browser
+  wind.ts              GFS / HRRR 10 m wind GRIB2 (simple-packed, lat/lon or Lambert) → u/v PNG frames
   damage-areas.ts      reports → clustered, buffered "damage" blobs
   wildfire.ts          WFIGS fires and perimeters, VIIRS hotspots (ArcGIS GeoJSON)
   smoke.ts             HMS smoke KML → plumes
@@ -113,7 +115,7 @@ src/lib/               pure, framework-free, unit-tested
   client-store.ts      filters, places, settings — localStorage, per browser
   sources/upstream.ts  every upstream request (uncached, used by scripts too)
   sources/cached.ts    the same behind `use cache` + named cacheLife profiles
-src/app/api/*          alerts, reports, outlook, radar, tropical, forecast, point-forecast, snow-blend, snow-past, snow-depth, fires, hotspots, smoke, air, geocode — polled by the page
+src/app/api/*          alerts, reports, outlook, radar, wind, tropical, forecast, point-forecast, snow-blend, snow-past, snow-depth, fires, hotspots, smoke, air, geocode — polled by the page
 src/components/        UI; the map is hosted in the root layout (see MapHost)
 scripts/               launchers' shared shell, lid-hold registry, source check
 ```
