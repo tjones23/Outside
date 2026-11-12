@@ -18,6 +18,7 @@ import { COLUMN_LEVELS } from "./snow-ratio";
 
 const FORECAST_API = "https://api.open-meteo.com/v1/forecast";
 const ENSEMBLE_API = "https://ensemble-api.open-meteo.com/v1/ensemble";
+const PREVIOUS_RUNS_API = "https://previous-runs-api.open-meteo.com/v1/forecast";
 
 export const OPEN_METEO_ATTRIBUTION = "Weather data by Open-Meteo.com (CC BY 4.0)";
 
@@ -40,6 +41,13 @@ export interface BlendModel {
   weight: WeightCurve;
   /** Why it's weighted the way it is, for the About page. */
   role: string;
+  /**
+   * The model whose verification against SNOTEL stands in for this one's,
+   * when Open-Meteo keeps no previous runs of it: HRDPS borrows HRRR's (both
+   * ~3 km), each ensemble its own control model's. Only the precipitation
+   * correction is borrowed, not the skill weighting.
+   */
+  verifiedBy?: string;
 }
 
 /**
@@ -50,8 +58,10 @@ export interface BlendModel {
  * NBM (already bias-corrected) and ECMWF (the best-verifying global model)
  * carry the most weight among the rest; the AI models gain from day 3,
  * where they verify well; and the ensemble means take over from day 5,
- * where any single run is mostly noise. OpenSnow's own weights are
- * proprietary and tuned against verification data; these are not tuned.
+ * where any single run is mostly noise. They are the starting point only:
+ * at each spot, `snow-verify.ts` scales every model's weight and corrects
+ * its precipitation by how its recent forecasts compared with what nearby
+ * SNOTEL gauges measured.
  */
 export const BLEND_MODELS: readonly BlendModel[] = [
   {
@@ -63,6 +73,7 @@ export const BLEND_MODELS: readonly BlendModel[] = [
     key: "hrdps", id: "cmc_gem_hrdps", name: "HRDPS", maker: "Environment Canada", resolutionKm: 2.5, kind: "deterministic",
     weight: [[0, 2.5], [24, 2.5], [48, 0]],
     role: "2.5 km, the other high-resolution short-range model. Strong the first day, gone after two.",
+    verifiedBy: "hrrr",
   },
   {
     key: "nbm", id: "ncep_nbm_conus", name: "NBM", maker: "NOAA", resolutionKm: 2.5, kind: "deterministic",
@@ -103,11 +114,13 @@ export const BLEND_MODELS: readonly BlendModel[] = [
     key: "gefs", id: "ncep_gefs_seamless", name: "GEFS ensemble", maker: "NOAA", resolutionKm: 25, kind: "ensemble",
     weight: [[0, 0], [120, 0], [216, 2]],
     role: "31 GFS runs with slightly different starts. Its spread is the forecast range; its mean takes over from day 5.",
+    verifiedBy: "gfs",
   },
   {
     key: "aifsEns", id: "ecmwf_aifs025_ensemble", name: "AIFS ensemble", maker: "ECMWF", resolutionKm: 25, kind: "ensemble",
     weight: [[0, 0], [120, 0], [216, 2]],
     role: "51 runs of ECMWF's AI model. Range and, from day 5, its mean.",
+    verifiedBy: "aifs",
   },
 ];
 
@@ -130,10 +143,17 @@ const SURFACE_VARS = ["temperature_2m", "relative_humidity_2m", "precipitation",
 const levelVar = (hPa: number) => `temperature_${hPa}hPa`;
 const DETERMINISTIC_VARS = [...SURFACE_VARS, "surface_pressure", ...COLUMN_LEVELS.map(levelVar)];
 
-function query(model: BlendModel, lat: number, lon: number, hourly: string[], past = false): string {
+/**
+ * `elevationM`, when known (a resort's mid-mountain), is the height
+ * Open-Meteo corrects temperatures to; without it Open-Meteo uses its own
+ * 90 m terrain model at the point, which for a resort's map pin is often the
+ * base lodge.
+ */
+function query(model: BlendModel, lat: number, lon: number, hourly: string[], past: boolean, elevationM: number | null): string {
   return new URLSearchParams({
     latitude: String(roundCoord(lat)),
     longitude: String(roundCoord(lon)),
+    ...(elevationM !== null ? { elevation: String(Math.round(elevationM)) } : {}),
     hourly: hourly.join(","),
     models: model.id,
     ...(past ? { past_days: String(PAST_DAYS), forecast_days: "1" } : { forecast_days: String(FORECAST_DAYS) }),
@@ -154,14 +174,67 @@ export const PAST_DAYS = 16;
 export const PAST_MODEL_KEYS = ["hrrr", "nbm", "ecmwf", "gfs"] as const;
 
 /** A deterministic model's last `PAST_DAYS` days, through the end of today. */
-export function pastModelUrl(model: BlendModel, lat: number, lon: number): string {
-  return `${FORECAST_API}?${query(model, lat, lon, DETERMINISTIC_VARS, true)}`;
+export function pastModelUrl(model: BlendModel, lat: number, lon: number, elevationM: number | null = null): string {
+  return `${FORECAST_API}?${query(model, lat, lon, DETERMINISTIC_VARS, true, elevationM)}`;
 }
 
-export function modelUrl(model: BlendModel, lat: number, lon: number): string {
+export function modelUrl(model: BlendModel, lat: number, lon: number, elevationM: number | null = null): string {
   return model.kind === "ensemble"
-    ? `${ENSEMBLE_API}?${query(model, lat, lon, SURFACE_VARS)}`
-    : `${FORECAST_API}?${query(model, lat, lon, DETERMINISTIC_VARS)}`;
+    ? `${ENSEMBLE_API}?${query(model, lat, lon, SURFACE_VARS, false, elevationM)}`
+    : `${FORECAST_API}?${query(model, lat, lon, DETERMINISTIC_VARS, false, elevationM)}`;
+}
+
+// --- Previous runs, for verification --------------------------------------------------
+
+/**
+ * The models Open-Meteo keeps previous runs of: for every past hour, what
+ * the run from one, three and five days before said about it. HRRR only
+ * reaches a day ahead, so it has day 1 alone; HRDPS and the ensembles have
+ * none (see `verifiedBy`).
+ */
+export const VERIFY_MODEL_KEYS = ["hrrr", "nbm", "ecmwf", "gfs", "icon", "gdps", "aifs", "aigfs"] as const;
+
+/** How many days ahead each verified forecast was made. */
+export const VERIFY_LEADS = [1, 3, 5] as const;
+export type VerifyLead = (typeof VERIFY_LEADS)[number];
+
+/** Days of forecasts checked against what was measured. */
+export const VERIFY_DAYS = 30;
+
+const previousVar = (lead: number) => `precipitation_previous_day${lead}`;
+
+/** One model's forecasts made 1, 3 and 5 days before each of the last `VERIFY_DAYS` days, at several spots in one request. */
+export function previousRunsUrl(model: BlendModel, points: readonly { lat: number; lon: number; elevationM: number }[]): string {
+  return `${PREVIOUS_RUNS_API}?${new URLSearchParams({
+    latitude: points.map((p) => roundCoord(p.lat)).join(","),
+    longitude: points.map((p) => roundCoord(p.lon)).join(","),
+    elevation: points.map((p) => Math.round(p.elevationM)).join(","),
+    hourly: VERIFY_LEADS.map(previousVar).join(","),
+    models: model.id,
+    past_days: String(VERIFY_DAYS + 1),
+    forecast_days: "1",
+    timeformat: "unixtime",
+  })}`;
+}
+
+/** One spot's previous forecasts: hourly precipitation, mm, by how many days ahead it was forecast. */
+export interface PreviousRuns {
+  /** Unix ms, UTC; each value is the hour ending then. */
+  times: number[];
+  leads: Map<VerifyLead, Series>;
+}
+
+/** Open-Meteo answers several spots with an array, one spot with a bare object. */
+export function parsePreviousRuns(json: unknown, count: number): PreviousRuns[] {
+  const list = Array.isArray(json) ? json : [json];
+  if (list.length !== count) {
+    header(list[0]);
+    throw new Error(`Open-Meteo answered ${list.length} spots for ${count}`);
+  }
+  return list.map((one) => {
+    const { hourly, times } = header(one);
+    return { times, leads: new Map(VERIFY_LEADS.map((lead) => [lead, series(hourly, previousVar(lead), times.length)])) };
+  });
 }
 
 // --- Responses ------------------------------------------------------------------

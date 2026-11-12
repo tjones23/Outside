@@ -1,6 +1,7 @@
 import { BLEND_MODELS, weightAt, type BlendModel, type DeterministicRun, type ModelRun, type SurfaceSeries } from "./openmeteo";
 import { columnMax, snowRatio, snowShare, standardPressure, warmestAloft, type Level } from "./snow-ratio";
-import type { BlendDay, BlendModelTotal, BlendSpan, SnowBlend } from "./types";
+import { precipFactor, weightFactor } from "./snow-verify";
+import type { BlendDay, BlendModelTotal, BlendSpan, BlendVerification, ElevationBand, SnowBlend } from "./types";
 
 /**
  * The snow blend: every model's precipitation turned into snow with
@@ -15,6 +16,15 @@ import type { BlendDay, BlendModelTotal, BlendSpan, SnowBlend } from "./types";
  * The range for each day is the lowest to highest of the individual models,
  * plus each ensemble's 10th to 90th percentile: where the models disagree,
  * the range is wide, and that is the honest forecast.
+ *
+ * Height comes first. Each model's precipitation is corrected by how its
+ * recent forecasts compared with nearby gauges (`snow-verify.ts`), and its
+ * weight by how well it did against the other models. For a resort the same
+ * runs are worked out again at its base and summit: temperatures moved by
+ * the standard lapse rate (so the rain/snow line and snow ratio follow the
+ * height), and precipitation by the gradient fitted across the gauges'
+ * heights — a summit 2,000 ft above mid-mountain can get far more than the
+ * models' smoothed terrain shows.
  */
 
 const HOUR = 3600_000;
@@ -103,16 +113,45 @@ function levelsAt(run: DeterministicRun, i: number): Level[] {
   return out;
 }
 
-function surfaceAt(run: DeterministicRun, i: number): number {
-  return run.surfaceHPa[i] ?? standardPressure(run.elevation ?? 0);
+/**
+ * The runs moved to another height: every temperature shifted by the lapse
+ * rate, surface pressure scaled (so the right levels are underground), and
+ * each model's precipitation multiplied by its correction there.
+ */
+export interface Adjust {
+  tempShiftC: number;
+  pressureScale: number;
+  precip: (key: string) => number;
 }
+
+export const NO_ADJUST: Adjust = { tempShiftC: 0, pressureScale: 1, precip: () => 1 };
+
+/** The standard atmosphere's 6.5 °C per km. */
+const LAPSE_C_PER_M = 0.0065;
+const M_PER_FT = 0.3048;
+
+/** From the height the runs are for to `dzFt` above it, with `verification`'s corrections (or none). */
+export function adjustFor(verification: BlendVerification | null, fromM: number, dzFt: number): Adjust {
+  const dzM = dzFt * M_PER_FT;
+  return {
+    tempShiftC: -LAPSE_C_PER_M * dzM,
+    pressureScale: standardPressure(fromM + dzM) / standardPressure(fromM),
+    precip: (key) => precipFactor(verification, key, dzFt),
+  };
+}
+
+function surfaceAt(run: DeterministicRun, i: number, adjust: Adjust): number {
+  return (run.surfaceHPa[i] ?? standardPressure(run.elevation ?? 0)) * adjust.pressureScale;
+}
+
+const shifted = (t: number | null, adjust: Adjust) => (t === null ? null : t + adjust.tempShiftC);
 
 /**
  * The models' consensus column, hour by hour: the median warmest level and
  * warmest layer aloft among models that have levels. Models without levels
  * (NBM, the ensembles here) borrow it, which beats guessing from 2 m alone.
  */
-function consensusColumn(runs: DeterministicRun[], index: Map<number, number>[], axis: number[]) {
+function consensusColumn(runs: DeterministicRun[], index: Map<number, number>[], axis: number[], adjust: Adjust) {
   const col: Series = [];
   const aloft: Series = [];
   axis.forEach((t, h) => {
@@ -122,8 +161,8 @@ function consensusColumn(runs: DeterministicRun[], index: Map<number, number>[],
       const i = index[r].get(t);
       if (i === undefined) return;
       const levels = levelsAt(run, i);
-      const surface = surfaceAt(run, i);
-      const c = columnMax(levels, surface, run.tempC[i]);
+      const surface = surfaceAt(run, i, adjust);
+      const c = columnMax(levels, surface, shifted(run.tempC[i], adjust));
       const a = warmestAloft(levels, surface);
       if (c !== null) cols.push(c);
       if (a !== null) alofts.push(a);
@@ -139,11 +178,14 @@ function hourSnow(
   s: SurfaceSeries,
   i: number,
   column: { col: number | null; aloft: number | null },
+  adjust: Adjust,
+  factor: number,
 ): { snow: number; swe: number; precip: number } | null {
-  const precipMm = s.precipMm[i];
-  if (precipMm === null) return null;
-  const tempC = s.tempC[i];
-  const snowCm = s.snowfallCm[i];
+  const raw = s.precipMm[i];
+  if (raw === null) return null;
+  const precipMm = raw * factor;
+  const tempC = shifted(s.tempC[i], adjust);
+  const snowCm = s.snowfallCm[i] === null ? null : s.snowfallCm[i]! * factor;
   const modelShare = snowCm !== null && precipMm > 0 ? Math.min(1, snowCm / SNOW_CM_PER_MM / precipMm) : null;
   const share = precipMm > 0 ? snowShare({ tempC, rh: s.rh[i], warmestAloftC: column.aloft, modelShare }) : 0;
   const colMax = column.col !== null ? Math.max(column.col, tempC ?? -Infinity) : tempC;
@@ -157,15 +199,17 @@ function hourly(
   index: Map<number, number>,
   axis: number[],
   column: (h: number, i: number) => { col: number | null; aloft: number | null },
+  adjust: Adjust,
+  factor: number,
 ): Hourly {
   const out: Hourly = { snow: [], swe: [], precip: [], tempC: [] };
   axis.forEach((t, h) => {
     const i = index.get(t);
-    const r = i === undefined ? null : hourSnow(s, i, column(h, i));
+    const r = i === undefined ? null : hourSnow(s, i, column(h, i), adjust, factor);
     out.snow[h] = r?.snow ?? null;
     out.swe[h] = r?.swe ?? null;
     out.precip[h] = r?.precip ?? null;
-    out.tempC[h] = i === undefined ? null : s.tempC[i];
+    out.tempC[h] = i === undefined ? null : shifted(s.tempC[i], adjust);
   });
   return out;
 }
@@ -256,8 +300,11 @@ function memberSums(values: (number | null)[][], idx: number[]): number[] | null
 const round1 = (n: number) => Math.round(n * 10) / 10;
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
+/** A model's weight at a lead: its starting curve times what verification learned. */
+type Weigh = (model: BlendModel, leadHours: number) => number;
+
 /** Each model's (or ensemble's mean) value per half-day, and its weight there. */
-function blendBucket(models: ModelBuckets[], key: "snow" | "swe" | "precip", b: number, leadHours: number): number | null {
+function blendBucket(models: ModelBuckets[], key: "snow" | "swe" | "precip", b: number, leadHours: number, weigh: Weigh): number | null {
   let sum = 0;
   let weights = 0;
   let plain = 0;
@@ -266,7 +313,7 @@ function blendBucket(models: ModelBuckets[], key: "snow" | "swe" | "precip", b: 
     const sums = memberSums(m[key], [b]);
     if (!sums) continue;
     const value = sums.reduce((a, c) => a + c, 0) / sums.length;
-    const w = weightAt(m.model.weight, leadHours);
+    const w = weigh(m.model, leadHours);
     sum += w * value;
     weights += w;
     plain += value;
@@ -277,13 +324,13 @@ function blendBucket(models: ModelBuckets[], key: "snow" | "swe" | "precip", b: 
   return weights > 0 ? sum / weights : plain / count;
 }
 
-function blendTemp(models: ModelBuckets[], b: number, leadHours: number, which: 0 | 1): number | null {
+function blendTemp(models: ModelBuckets[], b: number, leadHours: number, which: 0 | 1, weigh: Weigh): number | null {
   let sum = 0;
   let weights = 0;
   for (const m of models) {
     const t = m.temp[b];
     if (!t) continue;
-    const w = weightAt(m.model.weight, leadHours);
+    const w = weigh(m.model, leadHours);
     sum += w * t[which];
     weights += w;
   }
@@ -334,9 +381,10 @@ export interface ModelHours {
  * Each run's precipitation turned into snow hour by hour, with its own
  * column where it has upper-air temperatures and the models' consensus
  * where it doesn't. `runs` must all be for the same spot; at least one is
- * needed.
+ * needed. `adjust` moves them to another height and corrects their
+ * precipitation.
  */
-export function modelHours(runs: ModelRun[]): ModelHours {
+export function modelHours(runs: ModelRun[], adjust: Adjust = NO_ADJUST): ModelHours {
   const reference = runs.find((r) => r.kind === "deterministic") ?? runs[0];
   if (!reference) throw new Error("no model answered");
   const axis = reference.times;
@@ -344,7 +392,7 @@ export function modelHours(runs: ModelRun[]): ModelHours {
 
   const deterministic = runs.filter((r): r is DeterministicRun => r.kind === "deterministic");
   const detIndex = deterministic.map((r) => indexOf(r.times));
-  const consensus = consensusColumn(deterministic, detIndex, axis);
+  const consensus = consensusColumn(deterministic, detIndex, axis, adjust);
   const fromConsensus = (h: number) => ({ col: consensus.col[h], aloft: consensus.aloft[h] });
   const byKey = new Map(BLEND_MODELS.map((m) => [m.key, m]));
 
@@ -353,28 +401,37 @@ export function modelHours(runs: ModelRun[]): ModelHours {
     const model = byKey.get(run.key);
     if (!model) continue;
     const index = indexOf(run.times);
+    const factor = adjust.precip(model.key);
     if (run.kind === "deterministic") {
       const own = (h: number, i: number) => {
         const levels = levelsAt(run, i);
-        const surface = surfaceAt(run, i);
-        const col = columnMax(levels, surface, run.tempC[i]);
+        const surface = surfaceAt(run, i, adjust);
+        const col = columnMax(levels, surface, shifted(run.tempC[i], adjust));
         const aloft = warmestAloft(levels, surface);
         return { col: col ?? consensus.col[h], aloft: col !== null ? aloft : consensus.aloft[h] };
       };
-      models.push({ model, series: [hourly(run, index, axis, own)] });
+      models.push({ model, series: [hourly(run, index, axis, own, adjust, factor)] });
     } else {
-      models.push({ model, series: run.members.map((member) => hourly(member, index, axis, fromConsensus)) });
+      models.push({ model, series: run.members.map((member) => hourly(member, index, axis, fromConsensus, adjust, factor)) });
     }
   }
   return { axis, timezone: reference.timezone, elevation: reference.elevation, models };
 }
 
-/**
- * The blend for a spot from whichever models answered. `runs` must all be
- * for the same spot; at least one is needed.
- */
-export function buildBlend(runs: ModelRun[], now: number, failed: string[] = []): SnowBlend {
-  const { axis, timezone, elevation, models: hours } = modelHours(runs);
+const sumOf = (values: (number | null)[], idx: number[]) => {
+  const parts = idx.map((b) => values[b]);
+  return parts.every((p) => p !== null) ? (parts as number[]).reduce((a, c) => a + c, 0) : null;
+};
+
+const PERIODS = [
+  { label: "Next 5 days", from: 0, to: 5 },
+  { label: "Days 6–10", from: 5, to: 10 },
+  { label: "Days 11–15", from: 10, to: 15 },
+];
+
+/** Every model's half-day totals and their weighted blend, at one height. */
+function blendAt(runs: ModelRun[], now: number, adjust: Adjust, weigh: Weigh) {
+  const { axis, timezone, elevation, models: hours } = modelHours(runs, adjust);
   const buckets = buildBuckets(axis, timezone, now);
   const models: ModelBuckets[] = hours.map(({ model, series }) => ({
     model,
@@ -383,10 +440,7 @@ export function buildBlend(runs: ModelRun[], now: number, failed: string[] = [])
   }));
 
   const lead = (b: Bucket) => Math.max(0, (b.mid - now) / HOUR);
-  const blendOf = (key: "snow" | "swe" | "precip") => buckets.map((b, i) => blendBucket(models, key, i, lead(b)));
-  const snow = blendOf("snow");
-  const swe = blendOf("swe");
-  const precip = blendOf("precip");
+  const blendOf = (key: "snow" | "swe" | "precip") => buckets.map((b, i) => blendBucket(models, key, i, lead(b), weigh));
 
   // Rows: a day half-day and the night after it; the first may be a night alone.
   const rows: number[][] = [];
@@ -396,10 +450,48 @@ export function buildBlend(runs: ModelRun[], now: number, failed: string[] = [])
     else rows.push([i]);
   });
 
-  const sumOf = (values: (number | null)[], idx: number[]) => {
-    const parts = idx.map((b) => values[b]);
-    return parts.every((p) => p !== null) ? (parts as number[]).reduce((a, c) => a + c, 0) : null;
+  return {
+    timezone,
+    elevation,
+    buckets,
+    models,
+    rows,
+    lead,
+    snow: blendOf("snow"),
+    swe: blendOf("swe"),
+    precip: blendOf("precip"),
+    periods: PERIODS.filter((p) => rows.length >= p.to),
   };
+}
+
+/** A resort's base or summit, to work the blend out at as well. */
+export interface BandRequest {
+  label: string;
+  elevationFt: number;
+}
+
+export interface BlendOptions {
+  /** How the models have done nearby; null leaves the starting weights and corrects only for height. */
+  verification?: BlendVerification | null;
+  /** Other heights on the same mountain. */
+  bands?: BandRequest[];
+}
+
+const FT_PER_M = 3.2808;
+
+/**
+ * The blend for a spot from whichever models answered. `runs` must all be
+ * for the same spot; at least one is needed.
+ */
+export function buildBlend(runs: ModelRun[], now: number, failed: string[] = [], options: BlendOptions = {}): SnowBlend {
+  const verification = options.verification ?? null;
+  const weigh: Weigh = (model, leadHours) => weightAt(model.weight, leadHours) * weightFactor(verification, model.key, leadHours);
+  const here = runs.find((r) => r.kind === "deterministic")?.elevation ?? runs[0]?.elevation ?? null;
+  // Verification is worked out for the blend's own height; any other is a step up or down from it.
+  const offset = verification && here !== null ? here * FT_PER_M - verification.targetFt : 0;
+  const atFt = (dzFt: number) => adjustFor(verification, here ?? 0, dzFt + offset);
+
+  const { timezone, elevation, buckets, models, rows, lead, snow, swe, precip, periods: stretches } = blendAt(runs, now, atFt(0), weigh);
 
   const days: BlendDay[] = rows.map((idx) => {
     const dayB = idx.find((b) => buckets[b].half === "day");
@@ -417,18 +509,30 @@ export function buildBlend(runs: ModelRun[], now: number, failed: string[] = [])
         return p === null ? null : round2(p);
       })(),
       ratio: s.snowIn !== null && w !== null && w >= 0.02 ? Math.round(s.snowIn / w) : null,
-      high: dayB === undefined ? null : toF(blendTemp(models, dayB, lead(buckets[dayB]), 0)),
-      low: nightB === undefined ? null : toF(blendTemp(models, nightB, lead(buckets[nightB]), 1)),
+      high: dayB === undefined ? null : toF(blendTemp(models, dayB, lead(buckets[dayB]), 0, weigh)),
+      low: nightB === undefined ? null : toF(blendTemp(models, nightB, lead(buckets[nightB]), 1, weigh)),
     };
   });
 
-  const periods = [
-    { label: "Next 5 days", from: 0, to: 5 },
-    { label: "Days 6–10", from: 5, to: 10 },
-    { label: "Days 11–15", from: 10, to: 15 },
-  ]
-    .filter((p) => rows.length >= p.to)
-    .map((p) => ({ label: p.label, ...span(models, rows.slice(p.from, p.to).flat(), snow) }));
+  const periods = stretches.map((p) => ({ label: p.label, ...span(models, rows.slice(p.from, p.to).flat(), snow) }));
+
+  const bandRows = rows.slice(0, 15);
+  const bands: ElevationBand[] =
+    here === null
+      ? []
+      : (options.bands ?? []).map((band) => {
+          const at = blendAt(runs, now, atFt(band.elevationFt - here * FT_PER_M), weigh);
+          const total = (idx: number[]) => {
+            const s = sumOf(at.snow, idx);
+            return s === null ? null : round1(s);
+          };
+          return {
+            label: band.label,
+            elevationFt: Math.round(band.elevationFt),
+            days: bandRows.map(total),
+            periods: stretches.map((p) => total(rows.slice(p.from, p.to).flat())),
+          };
+        });
 
   return {
     timezone,
@@ -437,5 +541,7 @@ export function buildBlend(runs: ModelRun[], now: number, failed: string[] = [])
     periods,
     loaded: runs.map((r) => r.key),
     failed,
+    bands,
+    verification,
   };
 }

@@ -156,7 +156,13 @@ export function PlaceSheet({
       <TabPanel ids={ids} value="snow" tab={tab} seen={seen}>
         <SnowPast lat={place.lat} lon={place.lon} elevationFt={resort ? midFt(resort) : null} />
         <SectionTitle>Next 15 days</SectionTitle>
-        <SnowBlend lat={place.lat} lon={place.lon} />
+        <SnowBlend
+          lat={place.lat}
+          lon={place.lon}
+          elevationFt={resort ? midFt(resort) : null}
+          baseFt={resort?.baseFt ?? null}
+          topFt={resort?.topFt ?? null}
+        />
       </TabPanel>
       <TabPanel ids={ids} value="reports" tab={tab} seen={seen}>
         <p className="mb-1 text-xs text-muted-dim">Storm reports within {NEARBY_RADIUS_MILES} miles, matching your filters.</p>

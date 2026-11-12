@@ -62,6 +62,10 @@ const nextConfig: NextConfig = {
     // The models' recent past for the 15-day hindcast: its newest hours
     // change as each run lands, the rest hardly at all.
     modelsPast: { stale: MINUTE, revalidate: HOUR, expire: 6 * HOUR },
+    // The models' previous runs and the gauges' daily readings that verify
+    // them: a 30-day window that moves a day at a time, so a few refreshes a
+    // day are plenty.
+    verification: { stale: MINUTE, revalidate: 6 * HOUR, expire: DAY },
     // SNOTEL stations report hourly and NRCS posts the readings within the hour.
     snotel: { stale: MINUTE, revalidate: 30 * MINUTE, expire: 3 * HOUR },
     // The SNOTEL network itself: a station is added or retired a few times a year.

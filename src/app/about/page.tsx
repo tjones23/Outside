@@ -139,9 +139,22 @@ export default function AboutPage() {
             consensus.
           </p>
           <p className="mb-3">
-            The models are then averaged, each weighted by how well it does at that range. The weights are
-            Outside&rsquo;s own starting point, not tuned against observations. OpenSnow&rsquo;s PEAKS model,
-            trained on years of past storms, and its forecasters&rsquo; judgment aren&rsquo;t reproduced here.
+            The models are then averaged, each weighted by how well it does at that range. Those weights are
+            Outside&rsquo;s starting point; each place then learns from the last 30 days. Every model&rsquo;s
+            forecasts from one, three and five days before each day are checked against the water that the
+            nearest SNOTEL gauges measured — up to four within 30 miles, picked for height first, each 1,000 ft
+            of difference counting as five miles. A model that has been running dry here has its precipitation
+            raised, one running wet has it cut, and one whose daily totals have missed by less than the others
+            counts for more. The less that has fallen lately, the less any of that moves.
+          </p>
+          <p className="mb-3">
+            Height matters most. Models see mountains as smoothed ridges thousands of feet lower than the real
+            ones, so they underdo how much more falls higher up. With gauges at different heights, Outside fits
+            how much faster precipitation grows with height than the models show, and corrects for the spot&rsquo;s
+            own height. A resort is worked out at its mid-mountain, base and summit separately: temperatures moved
+            by the standard lapse rate, so the rain/snow line and snow ratio follow the height, and precipitation
+            by that fitted gradient. OpenSnow&rsquo;s PEAKS model, trained on years of past storms, and its
+            forecasters&rsquo; judgment aren&rsquo;t reproduced here.
           </p>
           <p className="mb-3">
             The last 15 days work the same way: HRRR, NBM, ECMWF IFS and GFS&rsquo;s own recent hours go

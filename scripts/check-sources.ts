@@ -180,10 +180,18 @@ async function main(): Promise<void> {
   });
 
   await check("Open-Meteo snow blend (Alta)", async () => {
-    const blend = await fetchSnowBlend(40.5884, -111.6386, Date.now());
+    const blend = await fetchSnowBlend(40.5884, -111.6386, Date.now(), 9800, [
+      { label: "Base", elevationFt: 8530 },
+      { label: "Summit", elevationFt: 11068 },
+    ]);
     const next5 = blend.periods[0];
     const failed = blend.failed.length > 0 ? `, failed: ${blend.failed.join(", ")}` : "";
-    return `${blend.loaded.length}/${blend.loaded.length + blend.failed.length} models, next 5 days ${next5?.snowIn ?? "?"}″${failed}`;
+    const bands = blend.bands.map((b) => `${b.label.toLowerCase()} ${b.periods[0] ?? "?"}″`).join(", ");
+    const v = blend.verification;
+    const checked = v
+      ? `; checked against ${v.stations.length} gauges, ${v.models.filter((m) => m.wetDays > 0).length} models scored`
+      : "; no gauges";
+    return `${blend.loaded.length}/${blend.loaded.length + blend.failed.length} models, next 5 days ${next5?.snowIn ?? "?"}″ (${bands})${failed}${checked}`;
   });
 
   await check("Open-Meteo past + SNOTEL (Alta)", async () => {
