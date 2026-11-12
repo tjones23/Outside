@@ -37,6 +37,16 @@ export function parseCoord(lat: unknown, lon: unknown): { lat: number; lon: numb
   return { lat: roundCoord(la), lon: roundCoord(lo) };
 }
 
+/**
+ * A height in feet from a query parameter, rounded: null when absent,
+ * undefined when it isn't a height on Earth's land.
+ */
+export function parseFeet(raw: string | null): number | null | undefined {
+  if (raw === null) return null;
+  const ft = raw.trim() === "" ? NaN : Number(raw);
+  return Number.isFinite(ft) && ft >= -300 && ft <= 21000 ? Math.round(ft) : undefined;
+}
+
 export function pointsUrl(lat: number, lon: number): string {
   return `${NWS}/points/${roundCoord(lat)},${roundCoord(lon)}`;
 }

@@ -1,11 +1,20 @@
 import { cacheLife } from "next/cache";
 import { airNowHour, hourIso } from "../air-quality";
 import { buildNdfdFrames, forecastProduct, pickNdfdTimes } from "../forecast";
-import { BLEND_MODELS, type ModelRun } from "../openmeteo";
+import { BLEND_MODELS, type ModelRun, type PreviousRuns } from "../openmeteo";
 import { buildDays, type GridAmounts, type PeriodForecast, type PointInfo } from "../point-forecast";
-import { buildBlend } from "../snow-blend";
+import { buildBlend, type BandRequest } from "../snow-blend";
 import { buildPast } from "../snow-past";
-import { buildReport, nearestStation, type SnotelDepth, type SnotelStation, type StationSeries } from "../snotel";
+import { verify } from "../snow-verify";
+import {
+  buildReport,
+  dailyWater,
+  nearestStation,
+  verificationStations,
+  type SnotelDepth,
+  type SnotelStation,
+  type StationSeries,
+} from "../snotel";
 import { convectiveDate } from "../reports";
 import { utcDate } from "../smoke";
 import type {
@@ -19,6 +28,7 @@ import type {
   OutlookProduct,
   PointForecast,
   ReportsData,
+  BlendVerification,
   SnowBlend,
   SnowPast,
   Ring,
@@ -34,6 +44,11 @@ import {
   AIRNOW_LOOKBACK_HOURS,
   fetchAirNowHour,
   fetchAlertFeed,
+  fetchGaugeData,
+  fetchPreviousRuns,
+  gaugePoint,
+  VERIFY_MODELS,
+  type GaugePoint,
   fetchFireIncidents,
   fetchFirePerimeters,
   fetchGeocode,
@@ -420,13 +435,15 @@ function cacheModelRun(key: string): void {
   else cacheLife("modelsGlobal");
 }
 
-/** One model's run for a spot. `lat`/`lon` must already be rounded. */
-async function getModelRun(key: string, lat: number, lon: number): Promise<Fetched<ModelRun>> {
+const M_PER_FT = 0.3048;
+
+/** One model's run for a spot, at `elevationFt` when known. `lat`/`lon` must already be rounded. */
+async function getModelRun(key: string, lat: number, lon: number, elevationFt: number | null): Promise<Fetched<ModelRun>> {
   "use cache";
   try {
     const model = BLEND_MODELS.find((m) => m.key === key);
     if (!model) throw new Error(`unknown model ${key}`);
-    const value = await fetchModelRun(model, lat, lon);
+    const value = await fetchModelRun(model, lat, lon, false, elevationFt === null ? null : elevationFt * M_PER_FT);
     cacheModelRun(key);
     return { ok: true, value };
   } catch (error) {
@@ -434,13 +451,79 @@ async function getModelRun(key: string, lat: number, lon: number): Promise<Fetch
   }
 }
 
+/** One model's previous runs at a set of gauges. A new run lands a few times a day; the window moves daily. */
+async function getPreviousRuns(key: string, points: GaugePoint[]): Promise<Fetched<PreviousRuns[]>> {
+  "use cache";
+  try {
+    const model = VERIFY_MODELS.find((m) => m.key === key);
+    if (!model) throw new Error(`unknown model ${key}`);
+    const value = await fetchPreviousRuns(model, points);
+    cacheLife("verification");
+    return { ok: true, value };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+/** A set of gauges' daily readings over the verification window. */
+async function getGaugeData(ids: string[]): Promise<Fetched<Map<string, StationSeries>>> {
+  "use cache";
+  try {
+    const value = await fetchGaugeData(ids, Date.now());
+    cacheLife("verification");
+    return { ok: true, value };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
 /**
- * A spot's snow blend. Not itself cached: the half-days are cut at `now`,
- * and each model has its own entry. Models that fail are left out and
- * named; only every model failing is an error.
+ * How the models have done against the gauges near a spot, for its height.
+ * Not itself cached — it's cheap arithmetic over entries that are, and the
+ * gauges and runs are shared by every nearby place that picks the same ones.
+ * Null when there's no gauge near or SNOTEL is down; the blend then keeps
+ * its starting weights.
  */
-export async function getSnowBlend(lat: number, lon: number, now: number): Promise<Fetched<SnowBlend>> {
-  const results = await Promise.all(BLEND_MODELS.map((m) => getModelRun(m.key, lat, lon)));
+async function getVerification(lat: number, lon: number, targetFt: number, now: number): Promise<BlendVerification | null> {
+  const stations = await getSnotelStations();
+  if (!stations.ok) return null;
+  const near = verificationStations(stations.value, lat, lon, targetFt);
+  if (near.length === 0) return null;
+  const points = near.map((n) => gaugePoint(n.station));
+  const [data, runs] = await Promise.all([
+    getGaugeData(near.map((n) => n.station.id)),
+    Promise.all(VERIFY_MODELS.map((m) => getPreviousRuns(m.key, points))),
+  ]);
+  if (!data.ok) {
+    console.error(`[outside] verification gauges failed: ${data.error}`);
+    return null;
+  }
+  for (const [i, r] of runs.entries()) if (!r.ok) console.error(`[outside] previous ${VERIFY_MODELS[i].key} runs failed: ${r.error}`);
+  return verify(
+    near.map((n) => ({ ...n, water: dailyWater(data.value.get(n.station.id)) })),
+    VERIFY_MODELS.map((m, i) => {
+      const r = runs[i];
+      return { key: m.key, runs: near.map((_, s) => (r.ok ? (r.value[s] ?? null) : null)) };
+    }),
+    targetFt,
+    now,
+  );
+}
+
+/**
+ * A spot's snow blend, at `elevationFt` when known (a resort's
+ * mid-mountain), and at each of `bands`. Not itself cached: the half-days
+ * are cut at `now`, and each model has its own entry. Models that fail are
+ * left out and named; only every model failing is an error.
+ */
+export async function getSnowBlend(
+  lat: number,
+  lon: number,
+  elevationFt: number | null,
+  bands: BandRequest[],
+  now: number,
+): Promise<Fetched<SnowBlend>> {
+  const results = await Promise.all(BLEND_MODELS.map((m) => getModelRun(m.key, lat, lon, elevationFt)));
   const runs = results.flatMap((r) => (r.ok ? [r.value] : []));
   const failed = BLEND_MODELS.filter((_, i) => !results[i].ok).map((m) => m.key);
   if (runs.length === 0) return results[0] as Fetched<SnowBlend>;
@@ -448,16 +531,20 @@ export async function getSnowBlend(lat: number, lon: number, now: number): Promi
     const r = results[BLEND_MODELS.findIndex((m) => m.key === key)];
     if (!r.ok) console.error(`[outside] ${key} run failed: ${r.error}`);
   }
-  return { ok: true, value: buildBlend(runs, now, failed) };
+  // The height the runs are for: the one asked, or Open-Meteo's terrain at the spot.
+  const terrainM = runs.find((r) => r.elevation !== null)?.elevation ?? null;
+  const here = elevationFt ?? (terrainM === null ? null : terrainM / M_PER_FT);
+  const verification = here === null ? null : await getVerification(lat, lon, here, now);
+  return { ok: true, value: buildBlend(runs, now, failed, { verification, bands }) };
 }
 
-/** One model's last 16 days at a spot. `lat`/`lon` must already be rounded. */
-async function getPastRun(key: string, lat: number, lon: number): Promise<Fetched<ModelRun>> {
+/** One model's last 16 days at a spot, at `elevationFt` when known. `lat`/`lon` must already be rounded. */
+async function getPastRun(key: string, lat: number, lon: number, elevationFt: number | null): Promise<Fetched<ModelRun>> {
   "use cache";
   try {
     const model = PAST_MODELS.find((m) => m.key === key);
     if (!model) throw new Error(`unknown model ${key}`);
-    const value = await fetchModelRun(model, lat, lon, true);
+    const value = await fetchModelRun(model, lat, lon, true, elevationFt === null ? null : elevationFt * M_PER_FT);
     cacheLife("modelsPast");
     return { ok: true, value };
   } catch (error) {
@@ -506,7 +593,8 @@ async function getSnotelStation(id: string): Promise<Fetched<{ daily?: StationSe
  * SNOTEL station's measurements. Not itself cached: hours are cut at `now`,
  * and each model and station has its own entry. SNOTEL is a bonus — the
  * models alone still answer when it's down or there's no station near.
- * `elevationFt`, when known (a resort's mid-mountain), steers which station.
+ * `elevationFt`, when known (a resort's mid-mountain), is the height the
+ * models' temperatures are corrected to and steers which station.
  */
 export async function getSnowPast(
   lat: number,
@@ -515,7 +603,7 @@ export async function getSnowPast(
   now: number,
 ): Promise<Fetched<SnowPast>> {
   const [results, stations] = await Promise.all([
-    Promise.all(PAST_MODELS.map((m) => getPastRun(m.key, lat, lon))),
+    Promise.all(PAST_MODELS.map((m) => getPastRun(m.key, lat, lon, elevationFt))),
     getSnotelStations(),
   ]);
   const runs = results.flatMap((r) => (r.ok ? [r.value] : []));

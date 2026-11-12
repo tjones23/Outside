@@ -325,6 +325,61 @@ export interface SnowBlend {
   /** `BLEND_MODELS` keys that answered, and that didn't. */
   loaded: string[];
   failed: string[];
+  /** Base and summit, for a resort: the same models worked out at those heights. */
+  bands: ElevationBand[];
+  /** How the models' recent forecasts compared with nearby gauges; null with no gauge near. */
+  verification: BlendVerification | null;
+}
+
+/** The blend at another height on the same mountain. */
+export interface ElevationBand {
+  label: string;
+  elevationFt: number;
+  /** Blended snow, one per `SnowBlend.days` entry. */
+  days: (number | null)[];
+  /** One per `SnowBlend.periods` entry. */
+  periods: (number | null)[];
+}
+
+/** A SNOTEL gauge that checked the models. */
+export interface VerifiedStation {
+  id: string;
+  name: string;
+  elevationFt: number;
+  miles: number;
+  /** Water it measured over the window, inches. */
+  measuredIn: number | null;
+}
+
+/** One model's record against the gauges. */
+export interface VerifiedModel {
+  /** A `BLEND_MODELS` key. */
+  key: string;
+  /** Days either it or a gauge had precipitation, at its shortest lead, all gauges together. */
+  wetDays: number;
+  /** Its forecast water on those days, as it ran, and what the gauges measured, inches. */
+  forecastIn: number;
+  measuredIn: number;
+  /** Its average miss per wet day after correction, inches of water; null with too few days. */
+  errorIn: number | null;
+  /** Natural log of the factor its precipitation is multiplied by at the spot's height. */
+  logCorrection: number;
+  /** [lead hours, multiplier on its blend weight] from its error against the other models'. */
+  weights: [number, number][];
+}
+
+export interface BlendVerification {
+  /** The height corrections are worked out for, ft: the blend's. */
+  targetFt: number;
+  /** Days checked. */
+  days: number;
+  stations: VerifiedStation[];
+  /**
+   * Natural log of how much more water falls per 1,000 ft higher than the
+   * models say, fitted across the gauges' heights (0.1 is about 10% more).
+   */
+  gradient: number;
+  models: VerifiedModel[];
 }
 
 /** The models' snow over some stretch of the past, inches. */

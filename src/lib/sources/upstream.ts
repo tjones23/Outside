@@ -24,7 +24,20 @@ import {
 import { nominatimUrl, parseNominatim } from "../geocode";
 import { mrmsFileUrl, type MrmsProduct } from "../mrms";
 import { windFileUrl, windRunCheckUrl } from "../wind";
-import { BLEND_MODELS, modelUrl, parseModelRun, PAST_MODEL_KEYS, pastModelUrl, type BlendModel, type ModelRun } from "../openmeteo";
+import {
+  BLEND_MODELS,
+  modelUrl,
+  parseModelRun,
+  parsePreviousRuns,
+  PAST_MODEL_KEYS,
+  pastModelUrl,
+  previousRunsUrl,
+  VERIFY_DAYS,
+  VERIFY_MODEL_KEYS,
+  type BlendModel,
+  type ModelRun,
+  type PreviousRuns,
+} from "../openmeteo";
 import { buildOutlook } from "../outlook";
 import {
   buildDays,
@@ -39,17 +52,21 @@ import {
 } from "../point-forecast";
 import { createRateLimiterState, recordHit } from "../rate-limit";
 import { parseSpcCsv, reportsUrl } from "../reports";
-import { buildBlend } from "../snow-blend";
+import { buildBlend, type BandRequest } from "../snow-blend";
 import { buildPast } from "../snow-past";
+import { verify } from "../snow-verify";
 import {
   buildDepths,
   buildReport,
+  dailyWater,
   latestDepthsUrl,
   nearestStation,
   parseData,
   parseStations,
   stationDataUrl,
   stationsUrl,
+  verificationDataUrl,
+  verificationStations,
   type SnotelDepth,
   type SnotelStation,
   type StationSeries,
@@ -83,6 +100,7 @@ import type {
   OutlookProduct,
   PointForecast,
   Ring,
+  BlendVerification,
   SnowBlend,
   SnowPast,
   SmokeData,
@@ -530,26 +548,88 @@ export async function fetchPointForecast(lat: number, lon: number, now: number):
 /**
  * Open-Meteo's free tier allows under 10,000 calls a day, and counts a
  * request with many variables, many days or ensemble members as several. A
- * place's blend is 11 requests, cached for one to six hours by model, so
- * this many a day is far more than a handful of places need — it's here so
- * a runaway can never get this server's address blocked.
+ * place's blend is 11 requests, cached for one to six hours by model, plus
+ * 8 for its verification, cached for six hours and shared by every place
+ * that uses the same gauges — so this many a day is far more than a handful
+ * of places need. It's here so a runaway can never get this server's
+ * address blocked.
  */
 const OPEN_METEO_DAY_MS = 24 * 60 * 60 * 1000;
 const OPEN_METEO_DAILY_REQUESTS = 1500;
 const openMeteoBudget = createRateLimiterState();
 const OPEN_METEO_TIMEOUT_MS = 30_000;
 
-/** One model's run for a spot. Ensemble answers are large, so this waits longer than other feeds. */
-export async function fetchModelRun(model: BlendModel, lat: number, lon: number, past = false): Promise<ModelRun> {
-  const url = past ? pastModelUrl(model, lat, lon) : modelUrl(model, lat, lon);
+async function openMeteo(url: string): Promise<unknown> {
   if (!recordHit(openMeteoBudget, "*", Date.now(), OPEN_METEO_DAY_MS, OPEN_METEO_DAILY_REQUESTS)) {
     throw new UpstreamError(url, null, "Open-Meteo: this server's daily request budget is used up");
   }
   const response = await get(url, "application/json", OPEN_METEO_TIMEOUT_MS);
-  return parseModelRun(model, await response.json());
+  return response.json();
 }
 
-/** Per-visitor and site-wide ceilings on blend lookups; each is up to 11 upstream requests. */
+/**
+ * One model's run for a spot, its temperatures corrected to `elevationM`
+ * when given. Ensemble answers are large, so this waits longer than other
+ * feeds.
+ */
+export async function fetchModelRun(
+  model: BlendModel,
+  lat: number,
+  lon: number,
+  past = false,
+  elevationM: number | null = null,
+): Promise<ModelRun> {
+  const url = past ? pastModelUrl(model, lat, lon, elevationM) : modelUrl(model, lat, lon, elevationM);
+  return parseModelRun(model, await openMeteo(url));
+}
+
+export const VERIFY_MODELS = VERIFY_MODEL_KEYS.map((key) => BLEND_MODELS.find((m) => m.key === key)!);
+
+/** A verification gauge, as Open-Meteo is asked about it. */
+export interface GaugePoint {
+  lat: number;
+  lon: number;
+  elevationM: number;
+}
+
+export const gaugePoint = (s: SnotelStation): GaugePoint => ({ lat: s.lat, lon: s.lon, elevationM: s.elevationFt * 0.3048 });
+
+/** One model's previous runs at every gauge, in their order. */
+export async function fetchPreviousRuns(model: BlendModel, points: GaugePoint[]): Promise<PreviousRuns[]> {
+  return parsePreviousRuns(await openMeteo(previousRunsUrl(model, points)), points.length);
+}
+
+/** The gauges' midnight readings over the verification window, by station id. */
+export async function fetchGaugeData(ids: string[], now: number): Promise<Map<string, StationSeries>> {
+  const response = await get(verificationDataUrl(ids, now, VERIFY_DAYS), "application/json", SNOTEL_TIMEOUT_MS);
+  return parseData(await response.json());
+}
+
+/** A spot's verification, uncached — for `check:sources`. Null with no gauge near. */
+export async function fetchVerification(lat: number, lon: number, targetFt: number, now: number): Promise<BlendVerification | null> {
+  const near = verificationStations(await fetchSnotelStations(), lat, lon, targetFt);
+  if (near.length === 0) return null;
+  const points = near.map((n) => gaugePoint(n.station));
+  const [data, runs] = await Promise.all([
+    fetchGaugeData(near.map((n) => n.station.id), now),
+    Promise.all(
+      VERIFY_MODELS.map((m) =>
+        fetchPreviousRuns(m, points).catch((error: unknown) => {
+          console.error(`[outside] previous ${m.key} runs failed: ${error instanceof Error ? error.message : String(error)}`);
+          return null;
+        }),
+      ),
+    ),
+  ]);
+  return verify(
+    near.map((n) => ({ ...n, water: dailyWater(data.get(n.station.id)) })),
+    VERIFY_MODELS.map((m, i) => ({ key: m.key, runs: near.map((_, s) => runs[i]?.[s] ?? null) })),
+    targetFt,
+    now,
+  );
+}
+
+/** Per-visitor and site-wide ceilings on blend lookups; each is up to 11 upstream requests, plus verification's. */
 const BLEND_VISITOR_WINDOW_MS = 10 * 60 * 1000;
 const BLEND_VISITOR_MAX = 30;
 const BLEND_GLOBAL_WINDOW_MS = 60 * 60 * 1000;
@@ -564,12 +644,21 @@ export function snowBlendAllowed(visitorKey: string, now = Date.now()): boolean 
 }
 
 /** A spot's snow blend, uncached — for `check:sources`. */
-export async function fetchSnowBlend(lat: number, lon: number, now: number): Promise<SnowBlend> {
-  const results = await Promise.allSettled(BLEND_MODELS.map((m) => fetchModelRun(m, lat, lon)));
+export async function fetchSnowBlend(
+  lat: number,
+  lon: number,
+  now: number,
+  elevationFt: number | null = null,
+  bands: BandRequest[] = [],
+): Promise<SnowBlend> {
+  const elevationM = elevationFt === null ? null : elevationFt * 0.3048;
+  const results = await Promise.allSettled(BLEND_MODELS.map((m) => fetchModelRun(m, lat, lon, false, elevationM)));
   const runs = results.flatMap((r) => (r.status === "fulfilled" ? [r.value] : []));
   const failed = BLEND_MODELS.filter((_, i) => results[i].status === "rejected").map((m) => m.key);
   if (runs.length === 0) throw (results[0] as PromiseRejectedResult).reason;
-  return buildBlend(runs, now, failed);
+  const here = runs.find((r) => r.elevation !== null)?.elevation;
+  const verification = here == null ? null : await fetchVerification(lat, lon, here / 0.3048, now);
+  return buildBlend(runs, now, failed, { verification, bands });
 }
 
 // --- Past snow (Open-Meteo hindcast + SNOTEL) ----------------------------------------

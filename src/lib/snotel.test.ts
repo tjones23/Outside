@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildDepths,
   buildReport,
+  dailyWater,
   isStationId,
   latestOf,
   nearestStation,
@@ -9,6 +10,8 @@ import {
   parseData,
   parseStations,
   stationTime,
+  verificationDataUrl,
+  verificationStations,
   type SnotelStation,
 } from "./snotel";
 
@@ -80,6 +83,73 @@ describe("nearestStation", () => {
     expect(nearestStation([valley, ridge], 40.61, -111.69, null)!.station.name).toBe("Valley");
     // …but for a 9,500 ft mid-mountain the ridge station wins.
     expect(nearestStation([valley, ridge], 40.61, -111.69, 9500)!.station.name).toBe("Ridge");
+  });
+
+  it("counts height for more than distance: a mile closer doesn't beat 1,000 ft nearer in height", () => {
+    // Both about 2–3 miles from the spot; the closer one is 1,500 ft too low.
+    const close = { ...ATWATER, id: "4:UT:SNTL", name: "Close", lat: 40.6, lon: -111.62, elevationFt: 8000 };
+    const level = { ...ATWATER, id: "5:UT:SNTL", name: "Level", lat: 40.62, lon: -111.62, elevationFt: 9400 };
+    expect(nearestStation([close, level], 40.588, -111.638, 9500)!.station.name).toBe("Level");
+  });
+});
+
+describe("verificationStations", () => {
+  const at = (id: number, miles: number, elevationFt: number): SnotelStation => ({
+    ...ATWATER,
+    id: `${id}:UT:SNTL`,
+    name: String(id),
+    lat: 40.588 + miles / 69,
+    elevationFt,
+  });
+
+  it("takes up to four within 30 miles, ranked with height counting heavily", () => {
+    const stations = [at(1, 2, 6000), at(2, 5, 9400), at(3, 12, 9600), at(4, 25, 9500), at(5, 3, 8900), at(6, 40, 9500)];
+    const picked = verificationStations(stations, 40.588, -111.638, 9500).map((n) => n.station.name);
+    // Scores: 5.5, 6, 12.5, then the valley station 2 miles off (2 + 17.5) over the one 25 miles out at the right height.
+    expect(picked).toEqual(["2", "5", "3", "1"]);
+    expect(verificationStations(stations, 40.588, -111.638, null)[0].station.name).toBe("1");
+  });
+
+  it("asks for gauge and pillow water for every one at once", () => {
+    const url = new URL(verificationDataUrl(["1:UT:SNTL", "2:UT:SNTL"], Date.parse("2026-11-12T18:00:00Z"), 30));
+    expect(url.searchParams.get("stationTriplets")).toBe("1:UT:SNTL,2:UT:SNTL");
+    expect(url.searchParams.get("elements")).toBe("PREC,WTEQ");
+    expect(url.searchParams.get("beginDate")).toBe("2026-10-11");
+  });
+});
+
+describe("dailyWater", () => {
+  const series = (prec: [string, number][], swe: [string, number][]) =>
+    new Map([
+      ["PREC", prec],
+      ["WTEQ", swe],
+    ]);
+
+  it("takes the larger of the gauge's and the pillow's gain each day", () => {
+    const water = dailyWater(
+      series(
+        [["2026-11-01", 10], ["2026-11-02", 10.8], ["2026-11-03", 10.8], ["2026-11-04", 11]],
+        [["2026-11-01", 2], ["2026-11-02", 2.5], ["2026-11-03", 3.1], ["2026-11-04", 3.1]],
+      ),
+    );
+    expect(water.get("2026-11-01")).toBeUndefined();
+    expect(water.get("2026-11-02")).toBeCloseTo(0.8);
+    // The gauge missed blowing snow the pillow caught.
+    expect(water.get("2026-11-03")).toBeCloseTo(0.6);
+    expect(water.get("2026-11-04")).toBeCloseTo(0.2);
+  });
+
+  it("treats settling and jitter as nothing, and a reset or a gap as unknown", () => {
+    const water = dailyWater(
+      series(
+        [["2026-09-29", 40], ["2026-09-30", 39.9], ["2026-10-01", 0], ["2026-10-03", 0.5]],
+        [],
+      ),
+    );
+    expect(water.get("2026-09-30")).toBe(0);
+    expect(water.get("2026-10-01")).toBeNull();
+    expect(water.has("2026-10-03")).toBe(false);
+    expect(dailyWater(undefined).size).toBe(0);
   });
 });
 

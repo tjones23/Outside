@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { jsonFixture } from "./__fixtures__/load";
 import { BLEND_MODELS, modelUrl, parseDeterministic, parseEnsemble, weightAt, type BlendModel } from "./openmeteo";
 import { buildBlend, buildBuckets, localParts } from "./snow-blend";
+import type { BlendVerification, VerifiedModel } from "./types";
 
 const model = (key: string): BlendModel => BLEND_MODELS.find((m) => m.key === key)!;
 const TZ = "America/Denver";
@@ -233,5 +234,75 @@ describe("buildBlend", () => {
   it("lists models that failed, and needs at least one that answered", () => {
     expect(buildBlend([ecmwf], NOW, ["hrrr"]).failed).toEqual(["hrrr"]);
     expect(() => buildBlend([], NOW)).toThrow();
+  });
+});
+
+describe("buildBlend, learning from verification and height", () => {
+  const ecmwf = parseDeterministic(model("ecmwf"), omResponse(alta));
+  /** A verification done at the runs' own height (2,655 m). */
+  const verification = (models: Partial<VerifiedModel>[], gradient = 0.08): BlendVerification => ({
+    targetFt: Math.round(2655 * 3.2808),
+    days: 30,
+    stations: [],
+    gradient,
+    models: models.map((m) => ({ key: "", wetDays: 10, forecastIn: 5, measuredIn: 5, errorIn: 0.1, logCorrection: 0, weights: [], ...m })),
+  });
+
+  it("corrects each model's precipitation by its record", () => {
+    const v = verification([{ key: "ecmwf", logCorrection: Math.log(1.5) }]);
+    const [, wednesday] = buildBlend([ecmwf], NOW, [], { verification: v }).days;
+    expect(wednesday.snowIn).toBeCloseTo(8.5 * 1.5, 0);
+    expect(wednesday.precipIn).toBeCloseTo(0.71, 2);
+    expect(buildBlend([ecmwf], NOW, [], { verification: v }).verification).toBe(v);
+  });
+
+  it("weights a model by its record against the others", () => {
+    const soon = (t: number) => {
+      const storm = t >= at("2026-10-13T18:00:00") && t < at("2026-10-14T00:00:00");
+      return { ...alta(t), p: storm ? 2 : 0 };
+    };
+    const hrrr = parseDeterministic(model("hrrr"), omResponse((t) => ({ ...soon(t), p: soon(t).p * 2 }), { hours: 48 }));
+    const gfs = parseDeterministic(model("gfs"), omResponse(soon));
+    // HRRR has been missing by more than the others lately: half its usual weight of 3.
+    const v = verification([{ key: "hrrr", weights: [[36, 0.5]] }]);
+    const [today] = buildBlend([hrrr, gfs], NOW, [], { verification: v }).days;
+    const g = today.models.find((m) => m.key === "gfs")!.snowIn;
+    const h = today.models.find((m) => m.key === "hrrr")!.snowIn;
+    expect(today.snowIn!).toBeCloseTo((1.5 * h + g) / 2.5, 0);
+  });
+
+  it("works a resort out at its base and summit, where the snow line and the totals differ", () => {
+    // Just below freezing at mid-mountain: snow there, rain 3,000 ft down.
+    const marginal = parseDeterministic(model("ecmwf"), omResponse((t) => ({ ...alta(t), t2: -1, levels: { 700: -3, 600: -12, 500: -24 } })));
+    const blend = buildBlend([marginal], NOW, [], {
+      bands: [
+        { label: "Base", elevationFt: 2655 * 3.2808 - 3000 },
+        { label: "Summit", elevationFt: 2655 * 3.2808 + 2000 },
+      ],
+    });
+    const [base, summit] = blend.bands;
+    expect(base.days).toHaveLength(blend.days.length);
+    expect(base.periods).toHaveLength(blend.periods.length);
+    // 12 mm of water at about 10:1, wet snow near freezing.
+    const mid = blend.days[1].snowIn!;
+    expect(mid).toBeGreaterThan(4);
+    expect(base.days[1]).toBe(0);
+    // Colder (a fluffier ratio) and wetter (the prior gradient) at the top.
+    expect(summit.days[1]!).toBeGreaterThan(mid * Math.exp(2 * 0.08));
+    expect(summit.elevationFt).toBe(Math.round(2655 * 3.2808 + 2000));
+  });
+
+  it("uses the learned gradient for the bands", () => {
+    const bands = [{ label: "Summit", elevationFt: 2655 * 3.2808 + 2000 }];
+    const flat = buildBlend([ecmwf], NOW, [], { verification: verification([], 0), bands });
+    const steep = buildBlend([ecmwf], NOW, [], { verification: verification([], 0.3), bands });
+    // Same temperatures at the summit either way; only the precipitation differs, by e^(0.3 × 2).
+    expect(steep.bands[0].days[1]! / flat.bands[0].days[1]!).toBeCloseTo(Math.exp(0.6), 1);
+    expect(steep.days[1].snowIn).toBe(flat.days[1].snowIn);
+  });
+
+  it("has no bands unless asked", () => {
+    expect(buildBlend([ecmwf], NOW).bands).toEqual([]);
+    expect(buildBlend([ecmwf], NOW).verification).toBeNull();
   });
 });

@@ -43,7 +43,8 @@ Service and Nominatim, both of which ask for one. It defaults to this repo.
 | [NOAA NOMADS](https://nomads.ncep.noaa.gov/) grib filter | 10 m wind (U, V) from GFS (every 3 h to 5 days) and HRRR (hourly to 18 h, every third run), drawn by this server into u/v images for an animated wind layer at `/api/wind` — not on the map yet | new run checked every 10 min, while wind is polled |
 | [NDFD WMS](https://digital.weather.gov/) | NWS 7-day gridded forecast: temperature, feels-like, gusts, rain, rain chance, cloud, snow; tiles come through this server (`/api/ndfd`), since the WMS sends no CORS headers | 10 min |
 | [NWS API](https://www.weather.gov/documentation/services-web-api) `points` + `gridpoints` | A saved place's 7-day forecast: day/night periods, new snow and precipitation per day | 15 min (grid cell lookup: 7 days), on opening a place |
-| [Open-Meteo](https://open-meteo.com/) forecast + ensemble APIs | A saved place's 15-day snow blend: HRRR, HRDPS, NBM, ECMWF IFS, GFS, ICON, GDPS, ECMWF AIFS, AIGFS; GEFS and AIFS ensembles. Free for non-commercial use, CC BY 4.0 | 1 h (HRRR, HRDPS, NBM), 3 h (global), 6 h (ensembles), on opening a place |
+| [Open-Meteo](https://open-meteo.com/) forecast + ensemble APIs | A saved place's 15-day snow blend: HRRR, HRDPS, NBM, ECMWF IFS, GFS, ICON, GDPS, ECMWF AIFS, AIGFS; GEFS and AIFS ensembles — at a resort's mid-mountain, base and summit. Free for non-commercial use, CC BY 4.0 | 1 h (HRRR, HRDPS, NBM), 3 h (global), 6 h (ensembles), on opening a place |
+| [Open-Meteo](https://open-meteo.com/) previous runs API + [USDA NRCS AWDB](https://wcc.sc.egov.usda.gov/awdbRestApi/swagger-ui/index.html) daily gauge and pillow water | Verification: each model's forecasts from 1, 3 and 5 days ahead over the last 30 days against what up to four nearby SNOTEL gauges measured, which corrects each model's precipitation, re-weights the blend, and fits how much more falls with height | 6 h, on opening a place |
 | [NIFC WFIGS](https://data-nifc.opendata.arcgis.com/) | Wildfires not yet out (size, containment, cause) and their mapped perimeters | 5 min (fires), 15 min (perimeters) |
 | [NASA FIRMS](https://firms.modaps.eosdis.nasa.gov/) VIIRS via [Esri Living Atlas](https://livingatlas.arcgis.com/) | Satellite fire hotspots, last 24 h, US and Canada | 15 min, while on |
 | [NOAA HMS](https://www.ospo.noaa.gov/products/land/hms.html) | Smoke plumes by density, today's (UTC) analysis or yesterday's until today's is drawn | 30 min, while on |
@@ -96,7 +97,8 @@ src/lib/               pure, framework-free, unit-tested
   point-forecast.ts    NWS points/forecast/grid → a place's 7 days with snow and precip
   openmeteo.ts         the blend's models, their weights by lead time, Open-Meteo parsing
   snow-ratio.ts        rain/snow split (wet-bulb, warm layer) and Kuchera snow ratio
-  snow-blend.ts        per-model snow → half-day totals → weighted blend and ranges
+  snow-blend.ts        per-model snow → half-day totals → weighted blend and ranges, at each height
+  snow-verify.ts       models' past forecasts vs SNOTEL gauges → per-model correction, weights, height gradient
   snow-past.ts         the models' last 15 days through the same snow ratio
   snotel.ts            SNOTEL stations, depths, nearest station, measured new snow
   resorts.ts           ski resorts: which state you're in, filter, sort, custom order

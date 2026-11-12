@@ -15,8 +15,17 @@ const AWDB = "https://wcc.sc.egov.usda.gov/awdbRestApi/services/v1";
 
 /** A station counts as "near" within this many miles. */
 export const SNOTEL_RADIUS_MILES = 20;
-/** Each 1,000 ft of height difference counts as this many miles of distance when picking one. */
-const MILES_PER_1000_FT = 2;
+/**
+ * Each 1,000 ft of height difference counts as this many miles of distance
+ * when picking one. In the mountains height matters far more than distance:
+ * two spots a mile apart and 2,000 ft apart can see feet of difference from
+ * one storm, while two at the same height ten miles apart often match.
+ */
+export const MILES_PER_1000_FT = 5;
+/** Verification looks for gauges this far out: wider, for more of them at more heights. */
+export const VERIFY_RADIUS_MILES = 30;
+/** At most this many gauges check the models for a spot. */
+export const VERIFY_STATIONS = 4;
 
 export interface SnotelStation {
   /** AWDB's triplet, "1308:UT:SNTL". */
@@ -106,6 +115,50 @@ export function stationDataUrl(id: string, duration: "DAILY" | "HOURLY", now: nu
   })}`;
 }
 
+/** Several stations' midnight gauge and pillow readings over the verification window, in one request. */
+export function verificationDataUrl(ids: readonly string[], now: number, days: number): string {
+  return `${AWDB}/data?${new URLSearchParams({
+    stationTriplets: ids.join(","),
+    elements: "PREC,WTEQ",
+    duration: "DAILY",
+    beginDate: awdbTime(now - (days + 2) * 86400_000).slice(0, 10),
+    endDate: awdbTime(now + 86400_000).slice(0, 10),
+  })}`;
+}
+
+/** A gauge rise bigger than this in a day is a reset or a fault, not weather. */
+const MAX_DAILY_WATER_IN = 8;
+
+/**
+ * The water a station measured each day, inches: the larger of what its
+ * precipitation gauge (PREC, which catches rain too) and its snow pillow
+ * (WTEQ) gained since the midnight before. Both undercount — the gauge
+ * misses wind-blown snow, the pillow misses whatever melts — so the larger
+ * is the better measure. Null for a day neither covers, or when the gauge
+ * reset (it starts over each October 1st) and the pillow has nothing.
+ */
+export function dailyWater(series: StationSeries | undefined): Map<string, number | null> {
+  const prec = new Map(series?.get("PREC") ?? []);
+  const swe = new Map(series?.get("WTEQ") ?? []);
+  const dates = [...new Set([...prec.keys(), ...swe.keys()])].sort();
+  const out = new Map<string, number | null>();
+  const gain = (m: Map<string, number>, a: string, b: string) => {
+    const x = m.get(a);
+    const y = m.get(b);
+    if (x === undefined || y === undefined) return null;
+    const d = y - x;
+    return d < -0.5 || d > MAX_DAILY_WATER_IN ? null : Math.max(0, d);
+  };
+  for (let i = 1; i < dates.length; i++) {
+    // Only consecutive days: a gap would lump several days into one.
+    if (Date.parse(`${dates[i]}T00:00:00Z`) - Date.parse(`${dates[i - 1]}T00:00:00Z`) !== 86400_000) continue;
+    const g = gain(prec, dates[i - 1], dates[i]);
+    const p = gain(swe, dates[i - 1], dates[i]);
+    out.set(dates[i], g === null && p === null ? null : Math.max(g ?? 0, p ?? 0));
+  }
+  return out;
+}
+
 const TRIPLET = /^\d{3,5}:[A-Z]{2}:SNTL$/;
 
 export function isStationId(id: string): boolean {
@@ -182,10 +235,35 @@ export function buildDepths(stations: SnotelStation[], data: Map<string, Station
 }
 
 /**
+ * Stations within `radius` miles of a spot, best first: each 1,000 ft of
+ * height difference counts as `MILES_PER_1000_FT` miles when the spot's
+ * height is known.
+ */
+function rankStations<T extends SnotelStation>(
+  stations: T[],
+  lat: number,
+  lon: number,
+  elevationFt: number | null,
+  radius: number,
+): { station: T; miles: number; score: number }[] {
+  const out: { station: T; miles: number; score: number }[] = [];
+  const dLat = radius / 69 + 0.05;
+  const dLon = dLat / Math.max(0.2, Math.cos((lat * Math.PI) / 180));
+  for (const station of stations) {
+    if (Math.abs(station.lat - lat) > dLat || Math.abs(station.lon - lon) > dLon) continue;
+    const miles = distanceMiles([lat, lon], [station.lat, station.lon]);
+    if (miles > radius) continue;
+    const climb = elevationFt === null ? 0 : (Math.abs(station.elevationFt - elevationFt) / 1000) * MILES_PER_1000_FT;
+    out.push({ station, miles, score: miles + climb });
+  }
+  return out.sort((a, b) => a.score - b.score);
+}
+
+/**
  * The station to show for a spot: the nearest within `SNOTEL_RADIUS_MILES`,
- * with each 1,000 ft of height difference counting as two miles when the
+ * with each 1,000 ft of height difference counting as five miles when the
  * spot's height is known — a station at the resort's mid-mountain beats a
- * slightly closer one down in the valley.
+ * closer one down in the valley.
  */
 export function nearestStation<T extends SnotelStation>(
   stations: T[],
@@ -193,16 +271,24 @@ export function nearestStation<T extends SnotelStation>(
   lon: number,
   elevationFt: number | null,
 ): { station: T; miles: number } | null {
-  let best: { station: T; miles: number; score: number } | null = null;
-  for (const station of stations) {
-    if (Math.abs(station.lat - lat) > 0.5 || Math.abs(station.lon - lon) > 0.7) continue;
-    const miles = distanceMiles([lat, lon], [station.lat, station.lon]);
-    if (miles > SNOTEL_RADIUS_MILES) continue;
-    const climb = elevationFt === null ? 0 : (Math.abs(station.elevationFt - elevationFt) / 1000) * MILES_PER_1000_FT;
-    const score = miles + climb;
-    if (!best || score < best.score) best = { station, miles, score };
-  }
-  return best && { station: best.station, miles: best.miles };
+  const best = rankStations(stations, lat, lon, elevationFt, SNOTEL_RADIUS_MILES)[0];
+  return best ? { station: best.station, miles: best.miles } : null;
+}
+
+/**
+ * The gauges that check the models for a spot: up to `VERIFY_STATIONS`
+ * within `VERIFY_RADIUS_MILES`, ranked like `nearestStation`. Several at
+ * different heights let verification see how much more falls higher up.
+ */
+export function verificationStations<T extends SnotelStation>(
+  stations: T[],
+  lat: number,
+  lon: number,
+  elevationFt: number | null,
+): { station: T; miles: number }[] {
+  return rankStations(stations, lat, lon, elevationFt, VERIFY_RADIUS_MILES)
+    .slice(0, VERIFY_STATIONS)
+    .map(({ station, miles }) => ({ station, miles }));
 }
 
 /**
