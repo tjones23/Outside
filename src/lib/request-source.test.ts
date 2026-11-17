@@ -29,6 +29,33 @@ describe("requestSource", () => {
   });
 });
 
+describe("requestSource without serve's identity header", () => {
+  const viaServe = (forwardedFor: string, extra: Record<string, string> = {}) =>
+    requestSource(headers({ host: "outside.example.ts.net", "x-forwarded-proto": "https", "x-forwarded-for": forwardedFor, ...extra }));
+
+  it("knows a tailnet device by its Tailscale address", () => {
+    expect(viaServe("100.101.102.103")).toEqual({ via: "tailnet", login: null });
+    expect(viaServe("100.64.0.1")).toEqual({ via: "tailnet", login: null });
+    expect(viaServe("100.127.255.254")).toEqual({ via: "tailnet", login: null });
+    expect(viaServe("fd7a:115c:a1e0::1234")).toEqual({ via: "tailnet", login: null });
+  });
+
+  it("doesn't mistake neighbouring or public addresses for the tailnet", () => {
+    expect(viaServe("100.63.255.255")).toEqual({ via: "other" });
+    expect(viaServe("100.128.0.1")).toEqual({ via: "other" });
+    expect(viaServe("203.0.113.9")).toEqual({ via: "other" });
+    expect(viaServe("2001:db8::1")).toEqual({ via: "other" });
+  });
+
+  it("goes by the address serve added, not one a Funnel visitor sent", () => {
+    expect(viaServe("100.101.102.103, 203.0.113.9")).toEqual({ via: "other" });
+  });
+
+  it("never counts a request serve marks as Funnel", () => {
+    expect(viaServe("100.101.102.103", { "tailscale-funnel-request": "?1" })).toEqual({ via: "other" });
+  });
+});
+
 describe("relyingParty", () => {
   it("is the host the browser is on, behind serve", () => {
     expect(relyingParty(headers({ host: "127.0.0.1:3001", "x-forwarded-host": "outside.example.ts.net", "x-forwarded-proto": "https" }))).toEqual({

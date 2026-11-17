@@ -77,7 +77,12 @@ export async function accountStateAction(): Promise<AccountState> {
 export async function signUpOptionsAction(username: string): Promise<WithOptions<PublicKeyCredentialCreationOptionsJSON>> {
   const request = await requestInfo();
   if (!canSignUp(request)) {
-    return { ok: false, error: request.secure ? "Accounts can only be made from the tailnet." : "Passkeys need the HTTPS address." };
+    return {
+      ok: false,
+      error: request.secure
+        ? "New Outside accounts can only be made from your tailnet, not the public link."
+        : "Passkeys need the HTTPS address.",
+    };
   }
   if (!allowAttempt("sign-up", request)) return { ok: false, error: "Too many tries. Wait 15 minutes." };
   try {
@@ -90,7 +95,7 @@ export async function signUpOptionsAction(username: string): Promise<WithOptions
 
 export async function signUpAction(challengeId: string, response: RegistrationResponseJSON, passkeyLabel: string): Promise<Result> {
   const request = await requestInfo();
-  if (!canSignUp(request)) return { ok: false, error: "Accounts can only be made from the tailnet." };
+  if (!canSignUp(request)) return { ok: false, error: "New Outside accounts can only be made from your tailnet, not the public link." };
   const db = accountsDb();
   const now = Date.now();
   try {
@@ -126,7 +131,10 @@ export async function signInAction(challengeId: string, response: Authentication
   const now = Date.now();
   const userId = await finishSignIn(db, String(challengeId ?? ""), response, request.relyingParty, now);
   if (userId === null || !getUser(db, userId)) {
-    return { ok: false, error: "That passkey isn't one Outside knows at this address." };
+    return {
+      ok: false,
+      error: "No Outside account uses that passkey. Outside accounts are separate from any other app's — create one above first.",
+    };
   }
   await startSession(userId, request.userAgent, request.https, now);
   return { ok: true };

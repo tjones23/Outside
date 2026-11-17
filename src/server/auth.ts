@@ -3,7 +3,7 @@ import { cookies, headers } from "next/headers";
 import { accountsDb } from "./context";
 import { cookieMaxAgeSeconds, findSession, type Session, type User } from "./accounts";
 import { createRateLimiterState, recordHit } from "@/lib/rate-limit";
-import { isLoopbackHost, relyingParty, requestSource, type RelyingParty, type RequestSource } from "@/lib/request-source";
+import { isLoopbackHost, relyingParty, requestSource, sourceKey, type RelyingParty, type RequestSource } from "@/lib/request-source";
 
 /**
  * The only place that reads the session cookie. Every Server Action that
@@ -25,8 +25,8 @@ export interface RequestInfo {
   secure: boolean;
   userAgent: string | null;
   relyingParty: RelyingParty;
-  /** The right-most forwarded address — serve adds it last — for per-visitor rate limits. */
-  address: string;
+  /** Who's asking, for rate limits: a tailnet login, or the connecting address. */
+  sourceKey: string;
 }
 
 export async function requestInfo(): Promise<RequestInfo> {
@@ -34,13 +34,14 @@ export async function requestInfo(): Promise<RequestInfo> {
   const get = (name: string) => h.get(name);
   const https = get("x-forwarded-proto") === "https";
   const rp = relyingParty(get);
+  const source = requestSource(get);
   return {
-    source: requestSource(get),
+    source,
     https,
     secure: https || isLoopbackHost(rp.id),
     userAgent: get("user-agent"),
     relyingParty: rp,
-    address: (get("x-forwarded-for") ?? "").split(",").map((ip) => ip.trim()).filter(Boolean).pop() ?? "unknown",
+    sourceKey: sourceKey(source, get),
   };
 }
 
@@ -100,7 +101,7 @@ const WINDOW_MS = 15 * 60_000;
  * anyone else their address, so one Funnel visitor can't lock out the rest.
  */
 export function allowAttempt(kind: "sign-in" | "sign-up" | "add-passkey", request: RequestInfo): boolean {
-  const source = request.source.via === "tailnet" ? request.source.login : `ip:${request.address}`;
+  const source = request.sourceKey;
   const max = kind === "sign-in" ? 30 : 10;
   return recordHit(limiter, `${kind}:${source}`, Date.now(), WINDOW_MS, max);
 }

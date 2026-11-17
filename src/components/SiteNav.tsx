@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { formatAgo } from "@/lib/format";
+import { useAccount } from "./providers/AccountProvider";
 import { useStormData } from "./providers/StormDataProvider";
 import { useFilteredData } from "./providers/useFilteredData";
 import { useNow } from "./providers/useNow";
@@ -31,6 +32,7 @@ export function SiteHeader() {
   const { alerts, refresh } = useStormData();
   const now = useNow();
   const busy = alerts.loading;
+  const { state: account } = useAccount();
 
   return (
     <header
@@ -62,6 +64,13 @@ export function SiteHeader() {
               Updated {formatAgo(alerts.updatedAt, now)}
             </span>
           )}
+          <Link
+            href="/account"
+            aria-current={pathname.startsWith("/account") ? "page" : undefined}
+            className="max-w-32 truncate rounded-full border border-line px-3 py-1 text-xs text-muted transition-colors hover:border-muted-dim hover:text-text aria-[current=page]:text-text"
+          >
+            {account?.signedIn ? account.username : "Sign in"}
+          </Link>
           <button
             type="button"
             onClick={refresh}
