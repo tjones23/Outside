@@ -90,17 +90,23 @@ Service and Nominatim, both of which ask for one. It defaults to this repo.
 
 ## Accounts
 
-Optional, and passkey-only — the same passkey sign-in as MoneyRight, with no
-password or authenticator code behind it: a passkey is the device plus Face
-ID, Touch ID or its passcode, and can't be phished. What an account holds is
+Optional, and passkey-only: no password or authenticator code — a passkey is
+the device plus Face ID, Touch ID or its passcode, and can't be phished.
+Outside's accounts and passkeys are its own, made and stored by Outside; they
+have nothing to do with any other app on the tailnet. What an account holds is
 the settings a browser would otherwise keep: saved places, filters (map,
 reports, alerts), notification choices, the ski-resort list's state and
 order, the place sheet's last tab, and the theme.
 
-- **Making one.** In Settings, pick a name and your device makes a passkey.
-  Allowed from the tailnet and from this Mac, but not over Funnel, so a public
-  link can't fill the database with strangers' accounts. Whatever that
-  browser had saved becomes the account's.
+- **Making one.** On the account screen (`/account` — "Sign in" in the
+  header, or Settings → Account), pick a name and your device makes a new
+  passkey for Outside. Allowed from the tailnet and from this Mac, but not
+  over Funnel, so a public link can't fill the database with strangers'
+  accounts. A tailnet visitor is known by the `Tailscale-User-Login` header
+  `tailscale serve` adds when it can, or else by the Tailscale address
+  (100.64.0.0/10, `fd7a:115c:a1e0::/48`) serve reports in `X-Forwarded-For`;
+  Funnel visitors come from public addresses. Whatever that browser had
+  saved becomes the account's.
 - **Signing in** works from anywhere Outside is on HTTPS, Funnel included.
   Browsers only allow passkeys on a secure page, so the plain-HTTP LAN
   address has no accounts.
@@ -124,7 +130,7 @@ order, the place sheet's last tab, and the theme.
   do what they say. Add `--dev` for the dev server's. A lost last passkey can't
   be recovered: delete the account here and make a new one.
 - **One gap in `lan` mode.** The server listens on 0.0.0.0, so a device on
-  your network can reach it directly and forge the tailnet-identity header
+  your network can reach it directly and forge the tailnet identity or address headers
   that `tailscale serve` normally stamps. That's enough to *make* an
   account, but not to get into anyone else's. Tailnet-only hosting doesn't
   have the gap.

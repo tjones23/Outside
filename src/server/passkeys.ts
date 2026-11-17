@@ -12,8 +12,9 @@ import type { RelyingParty } from "@/lib/request-source";
 import { hashToken, newToken } from "@/lib/tokens";
 
 /**
- * Passkeys (WebAuthn) — the only way into an Outside account, the same way
- * MoneyRight's passkey sign-in works: no username, no password. A passkey is
+ * Passkeys (WebAuthn) — the only way into an Outside account: no username,
+ * no password. Outside's accounts and passkeys are its own; nothing is shared
+ * with any other app on the tailnet. A passkey is
  * something you have (the device, or a synced keychain) unlocked by
  * something you are or know (Face ID, Touch ID, the device passcode). User
  * verification is required, and it can't be phished: the browser only offers
@@ -79,7 +80,8 @@ function registrationOptions(rp: RelyingParty, username: string, userHandle: str
     rpName: RP_NAME,
     rpID: rp.id,
     userName: username,
-    userDisplayName: username,
+    // What the OS passkey list shows beside the host, so it reads as Outside's own.
+    userDisplayName: `${username} (Outside)`,
     userID: new TextEncoder().encode(userHandle),
     attestationType: "none",
     excludeCredentials: exclude.map((c) => ({ id: c.id, transports: c.transports as never })),

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useSyncExternalStore, useTransition, type FormEvent } from "react";
 import { browserSupportsWebAuthn, startAuthentication, startRegistration } from "@simplewebauthn/browser";
 import {
@@ -77,11 +78,39 @@ export function AccountPanel() {
       <p className="rounded-xl border border-watch/30 bg-watch/10 px-4 py-3 text-sm text-text">
         {state.secure
           ? "This browser doesn't support passkeys, which Outside accounts sign in with."
-          : "Accounts sign in with passkeys, and browsers only allow passkeys over HTTPS. Open Outside at its tailnet address (https://…ts.net) to sign in."}
+          : "Outside accounts sign in with passkeys, and browsers only allow passkeys over HTTPS. Open Outside at its tailnet address (https://outside.…ts.net) to make an account or sign in."}
       </p>
     );
   }
   return <SignedOut canSignUp={state.canSignUp} />;
+}
+
+/** Settings' account row: who's signed in, and the way to the account screen. */
+export function AccountSummary() {
+  const { state } = useAccount();
+  return (
+    <div className="flex items-center gap-3 rounded-2xl border border-line bg-surface px-4 py-3">
+      <p className="min-w-0 flex-1 text-sm">
+        {!state ? (
+          <span className="text-muted-dim">Checking…</span>
+        ) : state.signedIn ? (
+          <>
+            Signed in to Outside as <span className="font-semibold">{state.username}</span>
+          </>
+        ) : (
+          <span className="text-muted">
+            Not signed in — places and settings are kept in this browser only.
+          </span>
+        )}
+      </p>
+      <Link
+        href="/account"
+        className="shrink-0 rounded-full border border-line bg-surface-2 px-4 py-2 text-sm font-medium hover:border-muted-dim"
+      >
+        {state?.signedIn ? "Manage" : "Create account or sign in"}
+      </Link>
+    </div>
+  );
 }
 
 function SignedOut({ canSignUp }: { canSignUp: boolean }) {
@@ -118,45 +147,58 @@ function SignedOut({ canSignUp }: { canSignUp: boolean }) {
   }
 
   return (
-    <div className="space-y-3">
-      <div className="space-y-3 rounded-2xl border border-line bg-surface px-4 py-3">
-        <p className="text-sm text-muted">
-          Sign in to keep your places, filters and settings in an account instead of this browser — the same on every
-          device you sign in on.
-        </p>
-        <Button variant="primary" onClick={onSignIn} disabled={signIn.pending} className="w-full">
+    <div className="space-y-4">
+      <form onSubmit={onSignUp} className="space-y-3 rounded-2xl border border-line bg-surface px-4 py-4">
+        <div>
+          <h2 className="text-base font-semibold">Create an Outside account</h2>
+          <p className="mt-1 text-sm text-muted">
+            Keep your places, filters and settings in an account instead of this browser, the same on every device
+            you sign in on. It&apos;s Outside&apos;s own account — separate from any other app.
+          </p>
+        </div>
+        {canSignUp ? (
+          <>
+            <label className="block text-sm">
+              <span className="mb-1 block text-muted">Pick a name</span>
+              <input
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                autoComplete="username"
+                autoCapitalize="none"
+                spellCheck={false}
+                maxLength={32}
+                placeholder="e.g. alex"
+                className={inputClass}
+              />
+              <span className="mt-1 block text-xs text-muted-dim">3–32 letters, numbers, dots, dashes or underscores.</span>
+            </label>
+            <Button type="submit" variant="primary" disabled={signUp.pending || username.trim().length < 3} className="w-full">
+              {signUp.pending ? "Waiting for your passkey…" : "Create account"}
+            </Button>
+            {signUp.error && <ErrorNote>{signUp.error}</ErrorNote>}
+            <p className="text-xs text-muted-dim">
+              No password: your device makes a new passkey for Outside, unlocked with Face ID, Touch ID or its passcode.
+              What this browser has saved becomes the account&apos;s.
+            </p>
+          </>
+        ) : (
+          <p className="rounded-xl border border-watch/30 bg-watch/10 px-4 py-3 text-sm text-text">
+            New accounts can only be made from your tailnet, not the public link. Open Outside on a device signed in to
+            Tailscale to make one; you can then sign in here.
+          </p>
+        )}
+      </form>
+
+      <div className="space-y-3 rounded-2xl border border-line bg-surface px-4 py-4">
+        <div>
+          <h2 className="text-base font-semibold">Already have an Outside account?</h2>
+          <p className="mt-1 text-sm text-muted">Sign in with the passkey you made for Outside.</p>
+        </div>
+        <Button onClick={onSignIn} disabled={signIn.pending} className="w-full">
           {signIn.pending ? "Waiting for your passkey…" : "Sign in with a passkey"}
         </Button>
         {signIn.error && <ErrorNote>{signIn.error}</ErrorNote>}
       </div>
-
-      {canSignUp ? (
-        <form onSubmit={onSignUp} className="space-y-2 rounded-2xl border border-line bg-surface px-4 py-3">
-          <label className="block text-sm">
-            <span className="mb-1 block text-muted">New here? Pick a name for your account</span>
-            <input
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              autoComplete="username"
-              autoCapitalize="none"
-              spellCheck={false}
-              maxLength={32}
-              placeholder="e.g. alex"
-              className={inputClass}
-            />
-          </label>
-          <Button type="submit" disabled={signUp.pending || username.trim().length < 3}>
-            {signUp.pending ? "Waiting for your passkey…" : "Create account with a passkey"}
-          </Button>
-          {signUp.error && <ErrorNote>{signUp.error}</ErrorNote>}
-          <p className="text-xs text-muted-dim">
-            No password: your device makes a passkey, unlocked with Face ID, Touch ID or its passcode. What this browser
-            has saved now becomes the account&apos;s.
-          </p>
-        </form>
-      ) : (
-        <p className="text-xs text-muted-dim">New accounts can be made from the tailnet address.</p>
-      )}
     </div>
   );
 }
@@ -194,7 +236,7 @@ function SignedIn({ state }: { state: Extract<AccountState, { signedIn: true }> 
     <div className="space-y-3">
       <div className="rounded-2xl border border-line bg-surface px-4 py-3">
         <p className="text-sm">
-          Signed in as <span className="font-semibold">{state.username}</span>
+          Signed in to Outside as <span className="font-semibold">{state.username}</span>
         </p>
         <p className="mt-1 text-xs text-muted-dim">
           Your places, filters and settings are saved to this account, and follow you to every device you sign in on.
