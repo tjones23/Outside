@@ -4,34 +4,40 @@ import { useCallback, useSyncExternalStore } from "react";
 import { DEFAULT_FILTERS, normalizeAlertsFilters, normalizeFilters, CATEGORY_KEY, type FilterScope } from "./filters";
 import { newId } from "./id";
 import { SKI_PASSES, type ResortSort, type SkiPass } from "./resorts";
+import { PREF_KEYS, PREF_PREFIX, SYNCED_PREF_KEYS, type PrefValues } from "./synced-prefs";
 import { DEFAULT_THEME_PREFERENCE, parseThemePreference, THEME_STORAGE_KEY, type ThemePreference } from "./theme";
 import type { AlertGroup, FilterSettings, NotificationSettings, SavedLocation, StormCategory } from "./types";
 
 /**
- * Everything personal lives here, in this browser — never on the server.
+ * Everything personal: filters, saved places, notification settings, the
+ * theme.
  *
- * Filters, saved places, notification settings and the theme are
- * per-browser by design: there are no accounts, and the server holds nothing
- * but cached public weather data. The pattern is WhatsGood's:
- * `useSyncExternalStore` over localStorage, which gives a correct server
- * snapshot for free and keeps tabs in sync through the `storage` event.
+ * It's always read from and written to this browser's localStorage, so
+ * every page has it instantly, before any request. Signed in to an account,
+ * that's a local copy: account-sync.ts sends each change to the account and
+ * brings the account's values back in (`applyAccountPrefs`), so every
+ * browser signed in to it shows the same places and settings. Signed out,
+ * it's this browser's alone, as it always was.
+ *
+ * The pattern is WhatsGood's: `useSyncExternalStore` over localStorage,
+ * which gives a correct server snapshot for free and keeps tabs in sync
+ * through the `storage` event.
  *
  * Every access is wrapped: localStorage throws in private-browsing modes and
  * when site data is blocked, and a preference is never worth breaking a page.
  */
 
-const PREFIX = "outside";
-// The map keeps the key every page used to share, so its settings carry over.
+const PREFIX = PREF_PREFIX;
 const FILTERS_KEYS: Record<FilterScope, string> = {
-  map: `${PREFIX}:filters:v1`,
-  reports: `${PREFIX}:filters:reports:v1`,
-  alerts: `${PREFIX}:filters:alerts:v1`,
+  map: PREF_KEYS.filtersMap,
+  reports: PREF_KEYS.filtersReports,
+  alerts: PREF_KEYS.filtersAlerts,
 };
-const LOCATIONS_KEY = `${PREFIX}:locations:v1`;
-const NOTIFY_KEY = `${PREFIX}:notify:v1`;
-const PLACE_TAB_KEY = `${PREFIX}:place-tab:v1`;
-const PLACES_VIEW_KEY = `${PREFIX}:places-view:v1`;
-const RESORT_PREFS_KEY = `${PREFIX}:resort-prefs:v1`;
+const LOCATIONS_KEY = PREF_KEYS.locations;
+const NOTIFY_KEY = PREF_KEYS.notify;
+const PLACE_TAB_KEY = PREF_KEYS.placeTab;
+const PLACES_VIEW_KEY = PREF_KEYS.placesView;
+const RESORT_PREFS_KEY = PREF_KEYS.resortPrefs;
 // v2: every NWS warning, not just tornado and severe thunderstorm. A new key
 // re-records the baseline, so the heat, flood and coastal warnings already in
 // effect the first time this version runs don't all notify at once.
@@ -90,14 +96,53 @@ function subscriberFor(key: string) {
   return existing;
 }
 
-function persist(key: string, value: unknown): void {
+/** Told of every preference this browser changes, so account-sync can send it on. */
+let onWrite: ((key: string, json: string) => void) | null = null;
+
+export function setPrefWriteListener(listener: ((key: string, json: string) => void) | null): void {
+  onWrite = listener;
+}
+
+/** Stores a value and tells this tab's subscribers; other tabs hear through `storage`. */
+function store(key: string, json: string | null): void {
   try {
-    window.localStorage.setItem(key, JSON.stringify(value));
+    if (json === null) window.localStorage.removeItem(key);
+    else window.localStorage.setItem(key, json);
   } catch {
     // Quota exceeded or storage blocked; nothing more to do.
   }
   snapshots.delete(key);
   window.dispatchEvent(new Event(`${PREFIX}:${key}`));
+}
+
+function persist(key: string, value: unknown): void {
+  const json = JSON.stringify(value);
+  store(key, json);
+  onWrite?.(key, json);
+}
+
+// --- The account's copy (see account-sync.ts) --------------------------------
+
+/** This browser's stored value of every preference an account carries. */
+export function readLocalPrefs(): PrefValues {
+  const out: PrefValues = {};
+  for (const key of SYNCED_PREF_KEYS) {
+    const raw = readRaw(key);
+    if (raw !== null) out[key] = raw;
+  }
+  return out;
+}
+
+/** Brings the account's values in, without sending them back. Unchanged values cause no re-render. */
+export function applyAccountPrefs(values: PrefValues): void {
+  for (const [key, json] of Object.entries(values)) {
+    if (SYNCED_PREF_KEYS.includes(key) && readRaw(key) !== json) store(key, json);
+  }
+}
+
+/** Back to the defaults — after signing out, so the next person here doesn't see the account's places. */
+export function clearLocalPrefs(): void {
+  for (const key of SYNCED_PREF_KEYS) if (readRaw(key) !== null) store(key, null);
 }
 
 function useStored<T>(key: string, parse: (value: unknown) => T, fallback: T): T {
@@ -370,6 +415,7 @@ export function useThemePreference() {
 }
 
 // --- Seen alerts (not reactive; only the notifier reads it) ------------------
+// Per device, never synced: see synced-prefs.ts.
 
 /** null until a baseline has been recorded in this browser. */
 export function readSeenAlerts(): string[] | null {

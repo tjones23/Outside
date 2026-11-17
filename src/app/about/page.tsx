@@ -177,11 +177,13 @@ export default function AboutPage() {
         </section>
 
         <section>
-          <h2 className="mb-2 text-base font-semibold text-text">What stays on this device</h2>
+          <h2 className="mb-2 text-base font-semibold text-text">Where your settings live</h2>
           <p>
-            There are no accounts. Your saved places, filters and notification choices live in this browser
-            only; the server keeps nothing but short-lived copies of the public feeds above, shared by everyone
-            who opens it.
+            Signed out, your saved places, filters and notification choices live in this browser only. Sign in
+            with a passkey (in Settings) and they&apos;re kept in your account instead, the same on every device
+            you sign in on. The account holds those settings and your passkeys&apos; public keys — no password,
+            no email. Everything else the server keeps is short-lived copies of the public feeds above, shared
+            by everyone who opens it.
           </p>
         </section>
 

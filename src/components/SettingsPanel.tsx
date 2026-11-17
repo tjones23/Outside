@@ -4,6 +4,7 @@ import { useState, useSyncExternalStore } from "react";
 import { useNotificationSettings, useThemePreference } from "@/lib/client-store";
 import type { ThemePreference } from "@/lib/theme";
 import type { NotificationSettings } from "@/lib/types";
+import { AccountPanel } from "./AccountPanel";
 import { registerServiceWorker } from "./AlertNotifier";
 import { PageHeader } from "./PageHeader";
 import { SecureContextNote } from "./SecureContextNote";
@@ -83,6 +84,9 @@ export function SettingsPanel() {
   return (
     <>
       <PageHeader title="Settings" />
+
+      <SectionTitle>Account</SectionTitle>
+      <AccountPanel />
 
       <SectionTitle>Appearance</SectionTitle>
       <div className="rounded-2xl border border-line bg-surface px-4 py-3">

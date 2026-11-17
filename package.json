@@ -13,13 +13,17 @@
     "check:sources": "tsx scripts/check-sources.ts",
     "check:webcams": "tsx scripts/check-webcams.ts",
     "build:borders": "tsx scripts/build-borders.ts",
-    "build:resorts": "tsx scripts/build-resorts.ts"
+    "build:resorts": "tsx scripts/build-resorts.ts",
+    "accounts": "tsx scripts/accounts.ts"
   },
   "dependencies": {
+    "@simplewebauthn/browser": "^14.0.0",
+    "@simplewebauthn/server": "^14.1.0",
     "maplibre-gl": "^6.15.0",
     "next": "16.3.5",
     "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "server-only": "^0.0.1"
   },
   "devDependencies": {
     "@maplibre/maplibre-gl-style-spec": "^26.4.4",
@@ -36,5 +40,8 @@
     "tsx": "^4.23.13",
     "typescript": "^5",
     "vitest": "^5.0.1"
+  },
+  "engines": {
+    "node": ">=24.7"
   }
 }
