@@ -28,7 +28,9 @@ When you're done, all of this should be true on this machine:
 Decisions already made with the user. Don't reopen them:
 
 - **No Caddy.** LAN is plain HTTP; HTTPS comes only from Tailscale.
-- **No auth.** It's reachable only on the LAN and the tailnet, and it holds no personal data server-side.
+- **No gate on the app itself.** It's reachable on the LAN and the tailnet. Since then it has
+  gained *optional* passkey accounts that hold preferences; see README → Accounts. They need
+  Node 24.7+ and nothing else to set up.
 - **A separate Tailscale node for Outside**, not Tailscale Services and not a second
   port on this machine's node. It stays within the free Personal plan: user-owned
   devices are unlimited. It must be a normal node, **not ephemeral**.
@@ -41,7 +43,7 @@ Decisions already made with the user. Don't reopen them:
 - **Data flow:** every upstream is keyless. Server-side fetches sit behind `use cache`
   (`src/lib/sources/`), and the browser polls `/api/*`.
 - **State:** filters, saved places and notification settings live in each browser's
-  localStorage. There is no database.
+  localStorage — or, signed in, in that account, in a SQLite file under `.outside/accounts/`.
 - **Config:** optional `.env.local` with `OUTSIDE_CONTACT`, the User-Agent contact.
   It defaults to the repo URL. Nothing is required.
 - **Secure-context features:** location and notifications work only in a secure

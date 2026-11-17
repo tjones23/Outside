@@ -8,8 +8,9 @@ and the NWS seven-day forecast — wildfires with their perimeters, satellite
 hotspots, smoke and air quality, on one map, plus your saved places, and a
 notification when a new warning covers one of them.
 
-Everything comes from free, keyless public feeds. There are no accounts; your
-places and settings stay in your browser.
+Everything comes from free, keyless public feeds. Accounts are optional and
+sign in with a passkey: signed out, your places and settings stay in your
+browser; signed in, they're kept in your account and follow you to every device.
 
 Outside is the web app from [DamageTracker](https://github.com/tjones23/DamageTracker)
 (an iOS/Android app), rebuilt as a standalone Next.js app in the style of
@@ -84,7 +85,49 @@ Service and Nominatim, both of which ask for one. It defaults to this repo.
   measured, and a 15-day blend across eleven weather models with each day's
   range), and the reports within 50 miles. The last tab used is remembered
   in the browser.
-- **Settings** — notifications for new warnings at your places, or anywhere.
+- **Settings** — your account, the theme, and notifications for new warnings
+  at your places, or anywhere.
+
+## Accounts
+
+Optional, and passkey-only — the same passkey sign-in as MoneyRight, with no
+password or authenticator code behind it: a passkey is the device plus Face
+ID, Touch ID or its passcode, and can't be phished. What an account holds is
+the settings a browser would otherwise keep: saved places, filters (map,
+reports, alerts), notification choices, the ski-resort list's state and
+order, the place sheet's last tab, and the theme.
+
+- **Making one.** In Settings, pick a name and your device makes a passkey.
+  Allowed from the tailnet and from this Mac, but not over Funnel, so a public
+  link can't fill the database with strangers' accounts. Whatever that
+  browser had saved becomes the account's.
+- **Signing in** works from anywhere Outside is on HTTPS, Funnel included.
+  Browsers only allow passkeys on a secure page, so the plain-HTTP LAN
+  address has no accounts.
+- **A passkey belongs to its address.** One made at
+  `https://outside.<tailnet>.ts.net` doesn't work at `http://localhost:3001`,
+  or the other way round. Settings says which passkeys work where, and adds
+  more. Passkeys in iCloud Keychain or Google Password Manager reach your other
+  devices without that. An account can't drop its last passkey.
+- **Syncing.** Each browser keeps a local copy in localStorage, so pages never
+  wait on the server. Every change is sent up within half a second, and the
+  account is fetched again when you come back to the tab, so a place saved on
+  the phone shows up on the laptop. The account wins, except for a change still
+  on its way up. Signing out returns that browser to the defaults. Which
+  warnings a device has already announced stays per device and never syncs.
+- **Sessions** last 90 days without a visit, and a year at most.
+- **Storage.** A SQLite file at `.outside/accounts/production/outside.db`
+  (`development/` for `next dev`; `OUTSIDE_DATA_DIR` overrides), owner-only and
+  gitignored. Needs Node 24.7+ for `node:sqlite`.
+- **From this Mac's terminal:** `npm run accounts` lists accounts;
+  `npm run accounts -- sign-out <name>` and `npm run accounts -- delete <name>`
+  do what they say. Add `--dev` for the dev server's. A lost last passkey can't
+  be recovered: delete the account here and make a new one.
+- **One gap in `lan` mode.** The server listens on 0.0.0.0, so a device on
+  your network can reach it directly and forge the tailnet-identity header
+  that `tailscale serve` normally stamps. That's enough to *make* an
+  account, but not to get into anyone else's. Tailnet-only hosting doesn't
+  have the gap.
 
 ## Architecture
 
@@ -114,7 +157,13 @@ src/lib/               pure, framework-free, unit-tested
   filters.ts           per-browser filters and what passes them
   nearby.ts            "near me" and saved-place status
   notifications.ts     which new warnings deserve a notification
-  client-store.ts      filters, places, settings — localStorage, per browser
+  client-store.ts      filters, places, settings — localStorage, the account's local copy when signed in
+  synced-prefs.ts      which of those an account carries, and what the server will store
+  pref-reconcile.ts    merging a browser's copy with the account's
+  account-sync.ts      sending each change up to the account
+  request-source.ts    tailnet / this Mac / anywhere else; the passkey host
+src/server/            accounts: node:sqlite database, sessions, passkeys (SimpleWebAuthn)
+src/app/actions/       the account's Server Actions
   sources/upstream.ts  every upstream request (uncached, used by scripts too)
   sources/cached.ts    the same behind `use cache` + named cacheLife profiles
 src/app/api/*          alerts, reports, outlook, radar, wind, tropical, forecast, point-forecast, snow-blend, snow-past, snow-depth, fires, hotspots, smoke, air, geocode — polled by the page
@@ -142,6 +191,7 @@ npm run typecheck
 npm run lint
 npm run check:sources  # hit every upstream, print pass/fail + timings
 npm run check:webcams  # find resort webcam links that have gone 404
+npm run accounts       # list accounts (sign-out <name>, delete <name>; --dev)
 ```
 
 ## Hosting it

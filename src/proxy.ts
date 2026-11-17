@@ -5,9 +5,10 @@ import { contentSecurityPolicy, staticSecurityHeaders } from "@/lib/security-hea
  * Security headers on every response.
  *
  * (In Next 16 this file is `proxy.ts`; `middleware.ts` is the deprecated name.)
- * There is no sign-in: the app is reachable only on the local network and the
- * tailnet, and it holds nothing but public weather data — everything personal
- * (saved places, settings) stays in each browser.
+ * Nothing is gated here: the map, lists and feeds are public weather data, and
+ * signing in is optional. An account (server/auth.ts, server/passkeys.ts) only
+ * changes where preferences are kept, and each Server Action that touches one
+ * checks the session cookie itself.
  */
 
 /** A fresh nonce per request, so an injected script can't guess it. */
